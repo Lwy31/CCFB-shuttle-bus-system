@@ -1,0 +1,143 @@
+name: Build and Deploy
+
+# Runs only on push to main (i.e. after a PR from ci.yml has been merged).
+# Three jobs, strictly sequenced with `needs:`:
+#   1. build             — dotnet publish + terraform plan (two artifacts, nothing deployed yet)
+#   2. deploy_resources  — terraform apply, using the EXACT plan artifact from (1)
+#   3. deploy_webapp     — uploads the EXACT app artifact from (1) to S3
+#
+# If (2) fails or is skipped, (3) never runs — there would be no bucket
+# yet to upload to. `needs:` enforces this; nothing here relies on hope.
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_SESSION_TOKEN:     ${{ secrets.AWS_SESSION_TOKEN }}
+
+jobs:
+  # ============================================================
+  # STAGE 1 — BUILD
+  # Compiles the real .NET app AND plans the infrastructure change.
+  # Produces two artifacts. Changes nothing in AWS yet.
+  # ============================================================
+  build:
+    name: "1. Build (dotnet publish + terraform plan)"
+    runs-on: ubuntu-latest
+    outputs:
+      deployment_id: ${{ steps.set_id.outputs.deployment_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: set_id
+        run: echo "deployment_id=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Run tests one more time before packaging
+        run: |
+          dotnet restore
+          dotnet test --configuration Release
+
+      # The commit SHA gets baked into the artifact itself, at build time —
+      # not injected later at deploy time. The exact zip that gets tested
+      # is the exact zip that gets deployed; nothing changes in between.
+      - name: Write build metadata
+        run: |
+          cat <<JSON > app/deployment.json
+          {"deploymentId": "${{ github.sha }}", "websiteMessage": "Hello from AMIT3253!"}
+          JSON
+
+      - name: dotnet publish
+        run: dotnet publish app/HelloWebApp.csproj -c Release -o publish
+
+      - name: Zip the published app
+        run: |
+          cd publish
+          zip -r ../app.zip .
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-package
+          path: app.zip
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Plan
+        working-directory: ./examples/basic
+        run: |
+          terraform init
+          terraform plan -out=tfplan
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: examples/basic/tfplan
+          retention-days: 1
+
+  # ============================================================
+  # STAGE 2 — DEPLOY RESOURCES
+  # Applies the EXACT plan Stage 1 just built. Never re-plans.
+  # ============================================================
+  deploy_resources:
+    name: "2. Deploy Resources (terraform apply)"
+    needs: build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./examples/basic
+    outputs:
+      bucket_name: ${{ steps.read_outputs.outputs.bucket_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Download plan artifact from Stage 1
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: examples/basic
+
+      - name: Terraform Apply (the artifact — not a fresh plan)
+        run: terraform apply -auto-approve tfplan
+
+      - name: Read the app bucket name back out of Terraform
+        id: read_outputs
+        run: echo "bucket_name=$(terraform output -raw app_bucket_name)" >> "$GITHUB_OUTPUT"
+
+  # ============================================================
+  # STAGE 3 — DEPLOY WEBAPP
+  # No Terraform here at all. Uploads the artifact Stage 1 built to
+  # S3; the already-running instance's cron job (set up by Stage 2)
+  # notices the new build and restarts the app on its own.
+  # ============================================================
+  deploy_webapp:
+    name: "3. Deploy WebApp (upload build to S3)"
+    needs: [build, deploy_resources]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download app artifact from Stage 1
+        uses: actions/download-artifact@v4
+        with:
+          name: app-package
+
+      - name: Upload to the app bucket
+        run: |
+          aws s3 cp app.zip "s3://${{ needs.deploy_resources.outputs.bucket_name }}/releases/app.zip"
+
+      - name: Summary
+        run: |
+          echo "Deployed commit ${{ needs.build.outputs.deployment_id }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "to s3://${{ needs.deploy_resources.outputs.bucket_name }}/releases/app.zip" >> "$GITHUB_STEP_SUMMARY"
+          echo "The instance picks this up within ~60 seconds via its cron sync job." >> "$GITHUB_STEP_SUMMARY"
+          

@@ -1,0 +1,62 @@
+name: CI
+
+# Runs on every Pull Request. Validates the .NET app AND the Terraform
+# config, but never touches AWS — nothing here creates, changes, or
+# deletes any real infrastructure. That's build.yml's job, and only
+# after a merge to main.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+
+jobs:
+  dotnet_ci:
+    name: ".NET — build & test"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release
+
+  terraform_ci:
+    name: "Terraform — fmt, validate, plan"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./examples/basic
+    env:
+      AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN:     ${{ secrets.AWS_SESSION_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Init
+        run: terraform init
+
+      - name: Format check
+        run: terraform fmt -check -recursive
+
+      - name: Validate
+        run: terraform validate
+
+      # Plan here is for the REVIEWER to read in the PR — it is not saved
+      # as an artifact and is never applied. build.yml creates the plan
+      # that actually gets deployed, from the merged code, separately.
+      - name: Plan (review only)
+        run: terraform plan
+        
