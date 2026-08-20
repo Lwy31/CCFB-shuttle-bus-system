@@ -1,3 +1,12 @@
+<?php 
+http_response_code(200);
+try{
+    require_once 'db_connect.php';
+}catch(Exception $e){
+    error_log("DB Connection warning: ".$e->getMessage());
+}
+
+?>
 <?php
 require 'config.php';
 require 'auth.php';
@@ -34,6 +43,7 @@ if ($uid = current_user_id()) {
 $pageTitle = 'Society Event Ticketing';
 require 'partials/header.php';
 ?>
+
 <section class="hero">
 <h1>Student Society Event Ticketing</h1>
 <p>Grab your tickets for upcoming campus events before they sell out.</p>
