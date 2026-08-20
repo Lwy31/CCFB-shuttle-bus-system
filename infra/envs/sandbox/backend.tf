@@ -13,7 +13,7 @@ terraform {
     bucket         = "shuttle-bus-ticketing-tfstate-443852597550" # <-- change to a globally-unique name
     key            = "sandbox/terraform.tfstate"
     region         = "us-east-1"
-    dynamodb_table = "assignment-tf-lock"
+    dynamodb_table = "shuttle-bus-ticketing-tf-lock"
     encrypt        = true
   }
 }

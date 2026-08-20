@@ -1,7 +1,7 @@
 name: DB - Seed Database (one-time)
 
 # Manual trigger only. Safe to accidentally run more than once - the seed
-# script checks whether event_ticketing_db.users already exists and skips the
+# script checks whether shuttle-bus-ticketing_db.users already exists and skips the
 # import if so, rather than failing on duplicate-key errors from schema.sql's
 # seed INSERTs.
 on:
