@@ -26,7 +26,7 @@ if [ "$ALREADY_SEEDED" -gt 0 ]; then
     # Fix image paths even if already seeded, in case we're rerunning to fix them
     S3_PREFIX="https://${BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com/uploads/"
     mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -D "shuttle_bus_db" -e \
-      "UPDATE events SET image_url = REPLACE(image_url, '/uploads/', '${S3_PREFIX}') WHERE image_url LIKE '/uploads/%';"
+      "UPDATE routes SET image_url = REPLACE(image_url, '/uploads/', '${S3_PREFIX}') WHERE image_url LIKE '/uploads/%';"
     echo "Updated sample image URLs to S3."
   fi
   exit 0
@@ -39,7 +39,7 @@ if [ -n "$BUCKET_NAME" ]; then
   # Rewrite local image paths to S3 URLs for the sample events
   S3_PREFIX="https://${BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com/uploads/"
   mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -D "shuttle_bus_db" -e \
-    "UPDATE events SET image_url = REPLACE(image_url, '/uploads/', '${S3_PREFIX}') WHERE image_url LIKE '/uploads/%';"
+    "UPDATE routes SET image_url = REPLACE(image_url, '/uploads/', '${S3_PREFIX}') WHERE image_url LIKE '/uploads/%';"
 fi
 
 echo "Database seeded successfully."
