@@ -5,6 +5,7 @@ require 'helpers.php';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf();
     $name          = trim($_POST['name'] ?? '');
     $email         = trim($_POST['email'] ?? '');
     $password      = $_POST['password'] ?? '';
@@ -36,6 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user_id = $stmt->insert_id;
             $stmt->close();
 
+            session_regenerate_id(true);
             $_SESSION['user_id'] = $user_id;
             $_SESSION['user_name'] = $name;
             $_SESSION['is_admin'] = false;
@@ -52,6 +54,7 @@ require 'partials/header.php';
 <h1>Create an Account</h1>
 <?php if ($error): ?><p class="alert alert-error"><?= htmlspecialchars($error) ?></p><?php endif; ?>
 <form method="post">
+<input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
 <label>Full Name <span class="required-mark">*</span> <input type="text" name="name" value="<?= htmlspecialchars($_POST['name'] ?? '') ?>" required></label>
 <label>Email <span class="required-mark">*</span> <input type="email" name="email" value="<?= htmlspecialchars($_POST['email'] ?? '') ?>" required></label>
 <label>Student ID / Staff ID <span class="required-mark">*</span> <input type="text" name="id_number" value="<?= htmlspecialchars($_POST['id_number'] ?? '') ?>" required></label>

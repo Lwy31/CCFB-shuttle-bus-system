@@ -19,11 +19,12 @@ if (!$ticket) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf();
     $travel_date   = $_POST['travel_date'] ?? '';
     $seat_quantity = (int)($_POST['seat_quantity'] ?? 0);
 
-    if ($travel_date === '' || $seat_quantity < 1) {
-        $error = 'Please choose a travel date and a valid number of seats.';
+    if ($travel_date === '' || $seat_quantity < 1 || $seat_quantity > 5) {
+        $error = 'Please choose a travel date and between 1 and 5 seats.';
     } elseif ($travel_date < date('Y-m-d')) {
         $error = 'Travel date cannot be in the past.';
     } elseif (is_departure_in_past($travel_date, $ticket['departure_time'])) {
@@ -72,11 +73,12 @@ require 'partials/header.php';
 <h1>Edit Ticket</h1>
 <?php if ($error): ?><p class="alert alert-error"><?= htmlspecialchars($error) ?></p><?php endif; ?>
 <form method="post">
+<input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
 <input type="hidden" name="id" value="<?= (int)$ticket['id'] ?>">
 <label>Route <input type="text" value="<?= htmlspecialchars($ticket['route_name']) ?> (departs <?= htmlspecialchars($ticket['departure_time']) ?>)" disabled></label>
 <label>Travel Date <input type="date" name="travel_date" id="travel-date" value="<?= htmlspecialchars($ticket['travel_date']) ?>" min="<?= date('Y-m-d') ?>" required></label>
 <p class="form-hint" id="route-availability-hint"></p>
-<label>Number of Seats <input type="number" name="seat_quantity" min="1" value="<?= (int)$ticket['seat_quantity'] ?>" required></label>
+<label>Number of Seats (max 5) <input type="number" name="seat_quantity" min="1" max="5" value="<?= (int)$ticket['seat_quantity'] ?>" required></label>
 <button type="submit" id="submit-btn">Update Ticket</button>
 </form>
 <script>

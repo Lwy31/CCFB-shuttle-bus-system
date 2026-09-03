@@ -19,6 +19,7 @@ if (!$route) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf();
     $route_name     = trim($_POST['route_name']);
     $origin         = trim($_POST['origin']);
     $destination    = trim($_POST['destination']);
@@ -55,6 +56,7 @@ require 'partials/header.php';
 <h1>Edit Route</h1>
 <?php if ($error): ?><p class="alert alert-error"><?= htmlspecialchars($error) ?></p><?php endif; ?>
 <form method="post" enctype="multipart/form-data">
+<input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
 <input type="hidden" name="id" value="<?= (int)$route['id'] ?>">
 <label>Route Name <input type="text" name="route_name" value="<?= htmlspecialchars($route['route_name']) ?>" required></label>
 <label>Origin <input type="text" name="origin" value="<?= htmlspecialchars($route['origin']) ?>" required></label>

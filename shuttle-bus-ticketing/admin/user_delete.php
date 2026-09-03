@@ -4,6 +4,7 @@ require '../auth.php';
 require_admin();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf();
     $id = (int)$_POST['id'];
     $myId = (int)current_user_id();
 

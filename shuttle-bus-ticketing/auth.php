@@ -57,9 +57,36 @@ class DbSessionHandler implements SessionHandlerInterface {
     }
 }
 
-session_set_save_handler(new DbSessionHandler($conn), true);
-register_shutdown_function('session_write_close');
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path'     => '/',
+        'domain'   => '',
+        'secure'   => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on',
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    session_set_save_handler(new DbSessionHandler($conn), true);
+    register_shutdown_function('session_write_close');
+    session_start();
+}
+
+function csrf_token() {
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function verify_csrf() {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $token = $_POST['csrf_token'] ?? '';
+        if (empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
+            http_response_code(403);
+            die('Invalid or expired request token. Please refresh the page and try again.');
+        }
+    }
+}
 
 function current_user_id() {
     return $_SESSION['user_id'] ?? null;

@@ -4,6 +4,7 @@ require 'auth.php';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf();
     $email = trim($_POST['email']);
     $password = $_POST['password'];
 
@@ -14,10 +15,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->close();
 
     if ($user && password_verify($password, $user['password_hash'])) {
+        session_regenerate_id(true);
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_name'] = $user['name'];
         $_SESSION['is_admin'] = (bool)$user['is_admin'];
-        header('Location: ' . ($user['is_admin'] ? 'admin/routes.php' : 'index.php'));
+        header('Location: ' . ($user['is_admin'] ? 'admin/index.php' : 'index.php'));
         exit;
     } else {
         $error = 'Invalid email or password.';
@@ -31,6 +33,7 @@ require 'partials/header.php';
 <h1>Login</h1>
 <?php if ($error): ?><p class="alert alert-error"><?= htmlspecialchars($error) ?></p><?php endif; ?>
 <form method="post">
+<input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
 <label>Email <span class="required-mark">*</span> <input type="email" name="email" required></label>
 <label>Password <span class="required-mark">*</span>
 <div class="password-field">

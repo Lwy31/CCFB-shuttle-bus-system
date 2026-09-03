@@ -1,64 +1,189 @@
-# hello-web
+# Campus Shuttle Bus & Transport Ticketing Platform
 
-A minimal, reusable Terraform module that provisions an EC2 instance, Security Group, Elastic IP, and an S3 bucket — the **infrastructure** for a tiny ASP.NET Core demo app.
+A cloud-native PHP + MySQL web platform and AWS Terraform infrastructure designed for the **AMIT3253 Cloud Computing for Business** capstone project at TAR UMT. 
 
-This is the teaching vehicle for AMIT3253's Terraform + CI/CD module (Weeks 7–9) — deliberately tiny so it applies and destroys in minutes, leaving room to focus on the mechanics (state, modules, CI/CD) rather than waiting on slow infrastructure.
+Students browse campus shuttle routes, view real-time seat availability, and book tickets for specific travel dates with concurrency-safe transaction locking. System administrators manage routes, tickets, user accounts, and track ridership metrics through an administrative operations dashboard.
 
-## Structure
+---
+
+## 1. System Architecture
+
+```mermaid
+flowchart TB
+    Internet((Internet Users))
+    Internet --> IGW[assignment-igw]
+    IGW --> ALB[assignment-alb\nPublic Subnets, HTTP:80]
+    
+    subgraph VPC["assignment-vpc 10.0.0.0/16"]
+        subgraph AZ1["Availability Zone us-east-1a"]
+            PubA[assignment-public-subnet-1]
+            PrivA[assignment-private-subnet-1]
+        end
+        subgraph AZ2["Availability Zone us-east-1b"]
+            PubB[assignment-public-subnet-2]
+            PrivB[assignment-private-subnet-2]
+        end
+        
+        NAT[assignment-nat] --> PubA
+        ALB --> PubA & PubB
+        ALB --> ASG
+        
+        subgraph ASG["assignment-asg (min:2 / max:4) - EC2 in Private Subnets"]
+            EC2A[EC2 App Server A\nApache + PHP 8]
+            EC2B[EC2 App Server B\nApache + PHP 8]
+        end
+        
+        PrivA --> EC2A
+        PrivB --> EC2B
+        EC2A & EC2B --> RDS[(assignment-rds\nMySQL 8, Private Subnets)]
+        EC2A & EC2B -->|VPC Gateway Endpoint\nZero NAT data fee| S3[(assignment-s3-uploads\nUploaded Photos & Releases)]
+        EC2A & EC2B -.->|Fetch DB Creds at Boot| Secrets[AWS Secrets Manager\nassignment-db-credentials]
+    end
 ```
-hello-web/
-├── main.tf, variables.tf, outputs.tf   # thin wiring, no provider block
-├── modules/webserver/                  # infrastructure only
-├── examples/basic/                     # the only place terraform apply runs
-├── app/                                # the actual ASP.NET Core application
-├── app.Tests/                          # unit tests for app/
-└── .github/workflows/                  # GitHub Actions CI/CD pipelines
+
+### Security & High Availability Highlights
+- **Multi-AZ Resilience**: Subnets span `us-east-1a` and `us-east-1b`. The ALB distributes incoming requests across healthy EC2 instances in both zones.
+- **Private Subnet Isolation**: EC2 instances and RDS MySQL have **no public IPv4 addresses**. Inbound traffic is accepted only via layered security groups:
+  `Internet -> ALB (port 80) -> EC2 (port 80) -> RDS MySQL (port 3306)`.
+- **Stateless EC2 & Database Session Storage**: PHP session states are stored in the RDS `sessions` table (`DbSessionHandler`), allowing seamless user sessions across auto-scaled instances without requiring sticky sessions.
+- **Zero-Downtime Code Delivery**: Deployments stage updates in `/tmp/` and atomically copy files to `/var/www/html/` before reloading Apache, preventing 404 gaps during deployments.
+- **Fail-Fast Health Checks**: Target group health checks probe `/healthz.php` with a 3-second database connection timeout, failing fast and pulling unhealthy nodes before request timeouts impact users.
+
+---
+
+## 2. Directory Structure
+
+```
+CCFB-shuttle-bus-system/
+├── README.md                      # Project documentation and architecture guide
+├── .github/workflows/             # Automated CI/CD Pipelines
+│   ├── ci.yml                     # Unified pipeline entry point (plan, deploy, destroy)
+│   ├── build.yml                  # Terraform syntax check, plan, apply, & destroy
+│   ├── deploy.yml                 # Code build, PHP linting, S3 artifact upload, SSM dispatch
+│   └── db-init.yml                # One-time automated RDS database seeding via SSM
+├── infra/                         # Infrastructure as Code (Terraform 1.9)
+│   ├── envs/sandbox/              # Main environment entry (backend, providers, variables)
+│   ├── modules/                   # Reusable Terraform infrastructure modules
+│   │   ├── alb/                   # Application Load Balancer & HTTP target groups
+│   │   ├── asg/                   # Launch template, Auto Scaling Group & CPU target tracking
+│   │   ├── rds/                   # Private MySQL RDS instance & DB subnet group
+│   │   ├── s3/                    # S3 bucket for uploads & release artifacts
+│   │   ├── secrets/               # Secrets Manager DB credentials & IAM policy
+│   │   ├── security-groups/       # Security group chaining (ALB -> EC2 -> RDS)
+│   │   └── vpc/                   # VPC, 4 subnets across 2 AZs, NAT Gateway, S3 VPC Endpoint
+│   └── scripts/
+│       └── seed-db.sh             # Idempotent database bootstrap script executed via SSM
+└── shuttle-bus-ticketing/         # Web Application (PHP 8.x + MySQL)
+    ├── config.php                 # Environment configuration, DB connection & S3 settings
+    ├── auth.php                   # Database session handler, auth helpers, CSRF protection
+    ├── helpers.php                # Photo upload validation, SigV4 S3 signer, timetable math
+    ├── schema.sql                 # Database DDL & seed data (users, routes, tickets, sessions)
+    ├── healthz.php                # ALB health check target with DB ping
+    ├── index.php                  # Public homepage (search, route cards, My Tickets)
+    ├── create.php / edit.php      # Concurrency-safe seat reservation with max 5 seats/order
+    ├── delete.php                 # Ticket cancellation handler with CSRF verification
+    ├── route_availability.php     # Asynchronous route capacity & departure JSON API
+    ├── routes.php / schedule.php  # Public timetables and route information
+    ├── testimonials.php           # Student reviews & ratings
+    ├── contact.php                # Contact and feedback submission form
+    └── admin/                     # Administrative Control Panel
+        ├── index.php              # Operations Dashboard (revenue, tickets, occupancy analytics)
+        ├── routes.php             # Route management & creation
+        ├── tickets.php            # Master ticket registry & cancellations
+        ├── users.php              # User role management (promote/demote admin, delete accounts)
+        └── messages.php           # Contact messages inbox
 ```
 
-## Prerequisites: First-time Setup
+---
 
-Before you can deploy this project for the first time, you must create a Terraform state bucket manually using the AWS CLI. Terraform uses this bucket to keep track of the resources it creates.
+## 3. Core Application Features
 
-1. **Create the state bucket:**
+1. **Concurrency-Safe Seat Reservation**:
+   - Booking uses pessimistic row locking (`SELECT ... FOR UPDATE`) within a database transaction.
+   - Sums all seats currently booked for that route and date, strictly enforcing `routes.total_seats`.
+   - Protects against booking monopoly with a 5-seat-per-booking cap.
+2. **Real-Time Asynchronous Availability**:
+   - The booking form queries `route_availability.php` dynamically when changing the travel date.
+   - Fully booked routes or routes that have already departed today are disabled and greyed out before submission.
+3. **Security Hardening**:
+   - **CSRF Protection**: All POST actions (booking, editing, canceling, user management, and reviews) enforce cryptographic anti-CSRF tokens (`csrf_token()` / `verify_csrf()`).
+   - **Session Hardening**: Sessions enforce `HttpOnly`, `SameSite=Lax`, and regenerate session identifiers on login (`session_regenerate_id()`) to prevent session fixation attacks.
+   - **SQL Injection Prevention**: All queries use prepared statements with parameter binding.
+4. **Admin Analytics Dashboard (`admin/index.php`)**:
+   - KPI metrics: Total Revenue (RM), Total Tickets Sold, Today's Bookings & Occupancy, Registered Accounts.
+   - Ridership breakdown by route and recent activity feed.
+
+---
+
+## 4. Local Development Setup
+
+### Requirements
+- PHP 8.1+ with `mysqli` extension
+- MySQL 5.7+ / MariaDB 10.5+
+
+### Quickstart
+1. **Clone the repository and enter the app folder**:
    ```bash
-   aws s3 mb s3://hello-web-state-<your-name> --region us-east-1
+   cd shuttle-bus-ticketing
    ```
-2. **Update placeholders in `examples/basic/main.tf`:**
-   Replace the placeholder values with your unique suffix:
-   - `bucket = "hello-web-state-<your-name>"`
-   - `app_bucket_name = "hello-web-app-<your-name>"`
+2. **Initialize the local database**:
+   ```bash
+   mysql -u root -p -e "CREATE DATABASE shuttle_bus_db;"
+   mysql -u root -p shuttle_bus_db < schema.sql
+   ```
+3. **Configure Environment Variables**:
+   Copy `.env.example` to `.env` and fill in your local MySQL credentials:
+   ```bash
+   cp .env.example .env
+   ```
+   ```ini
+   DB_HOST=localhost
+   DB_USER=root
+   DB_PASS=yourpassword
+   DB_NAME=shuttle_bus_db
+   ```
+4. **Start the local PHP server**:
+   ```bash
+   php -S localhost:8000
+   ```
+5. **Access the application**:
+   - Public site: `http://localhost:8000/`
+   - Default Admin: `admin@example.com` / `admin123` *(change password upon deployment)*
 
-## The Workflows (Manual Triggers)
+---
 
-This project uses **GitHub Actions** to automate deployments. All workflows are configured with `workflow_dispatch` so they only run when you manually trigger them from the **Actions** tab in GitHub.
+## 5. AWS Cloud Deployment (Terraform + GitHub Actions)
 
-1. **`ci.yml`**: Validates the .NET app (build & test) and Terraform config (fmt, validate, plan). Touches nothing in AWS.
-2. **`build.yml` (Build and Deploy)**: 
-   - **Stage 1 (Build)**: Compiles the app and creates a Terraform plan.
-   - **Stage 2 (Deploy Resources)**: Runs `terraform apply` to provision the AWS infrastructure.
-   - **Stage 3 (Deploy WebApp)**: Uploads the compiled `.NET` app (`app.zip`) to the newly created S3 bucket.
-3. **`destroy.yml` (Destroy Infrastructure)**: Runs `terraform destroy` to completely wipe out all AWS resources. *Requires typing "destroy" to confirm.*
+Deployments are automated through **GitHub Actions** and provisioned via **Terraform** in the `us-east-1` region.
 
-## How the Deployment Actually Works
+### Prerequisites (AWS Academy Learner Lab)
+1. **Bootstrap the remote Terraform state bucket & lock table** (one-time setup via AWS CLI):
+   ```bash
+   ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+   aws s3api create-bucket --bucket "shuttle-bus-ticketing-tfstate-${ACCOUNT_ID}" --region us-east-1
+   aws dynamodb create-table --table-name "shuttle-bus-ticketing-tf-lock" \
+     --attribute-definitions AttributeName=LockID,AttributeType=S \
+     --key-schema AttributeName=LockID,KeyType=HASH \
+     --billing-mode PAY_PER_REQUEST
+   ```
+2. **Set GitHub Repository Secrets**:
+   Learner Lab credentials rotate periodically. Before triggering workflows, ensure the following 3 secrets are updated in GitHub Settings &rarr; Secrets:
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
+   - `AWS_SESSION_TOKEN`
 
-This project deliberately separates two concerns that are easy to conflate:
-- **Terraform provisions infrastructure**: It creates the EC2 instance, opens ports, and creates an S3 bucket.
-- **The CI/CD pipeline deploys the application code**: It zips the app and uploads it to S3.
+### CI/CD Workflows
 
-**So how does the code get onto the EC2 instance?**
-1. When Terraform creates the EC2 instance, it uses a `user_data` script to set up a **cron job** that runs every minute.
-2. Every 60 seconds, the EC2 instance automatically checks the S3 bucket for a new `app.zip`.
-3. If the code has changed, it downloads the zip, extracts it, and restarts the `.NET` web server. 
-4. *No SSH, no re-running Terraform, and no instance replacement is needed to deploy new code!*
+| Workflow | File | Trigger | Purpose |
+|---|---|---|---|
+| **CI - Full Pipeline** | `.github/workflows/ci.yml` | Manual (`workflow_dispatch`) | Single entry point. Mode `plan`/`destroy` controls infra; `deploy` provisions infra then deploys the app. |
+| **CI - Build Infrastructure** | `.github/workflows/build.yml` | Reusable / Manual | Formats, validates, and runs `terraform plan`, `apply`, or `destroy`. |
+| **CD - Deploy Application** | `.github/workflows/deploy.yml` | Reusable / Manual | Validates PHP syntax, builds artifact, uploads to S3, and updates EC2 fleet via SSM without downtime. |
+| **DB - Seed Database** | `.github/workflows/db-init.yml` | Manual (one-time) | Idempotently seeds `schema.sql` into private RDS instance via SSM Run Command on an EC2 instance. |
 
-## Troubleshooting
-
-- **Server is up, but website is down?** It takes up to 60 seconds after a successful GitHub Action run for the EC2 instance to pull the code.
-- **Changing the bucket name?** We added `user_data_replace_on_change = true` to the EC2 instance in Terraform. This ensures that if you change the S3 bucket name in your code, Terraform will destroy the old EC2 instance and create a new one with the updated bucket name baked in.
-- **Can't delete the S3 bucket?** We added `force_destroy = true` to the Terraform S3 bucket configuration so that it can be destroyed even if it still contains `app.zip`.
-
-## Running the app locally, without any of this
-```bash
-cd app && dotnet run
-```
-See `app/README.md` for details, including running the unit tests.
+### Deployment Steps
+1. Navigate to the **Actions** tab in GitHub.
+2. Select **CI - Full Pipeline** &rarr; **Run workflow** with `mode: deploy`.
+3. After the pipeline finishes and EC2 instances are healthy, run **DB - Seed Database** once to populate the sample routes and default admin account.
+4. Access the web app using the Application Load Balancer DNS name printed in the Terraform outputs (`alb_dns_name`).
+5. When finished testing, run **CI - Full Pipeline** with `mode: destroy` to terminate all AWS resources and stay within budget.

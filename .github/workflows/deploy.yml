@@ -63,6 +63,10 @@ jobs:
         with:
           php-version: "8.2"
 
+      - name: Validate PHP syntax
+        working-directory: ${{ env.APP_DIR }}
+        run: find . -name "*.php" -exec php -l {} \;
+
       - name: Install app dependencies (AWS SDK for PHP)
         working-directory: ${{ env.APP_DIR }}
         run: composer install --no-dev --optimize-autoloader
@@ -128,9 +132,13 @@ jobs:
             --parameters '{"commands":[
               "cloud-init status --wait",
               "aws s3 cp s3://${{ env.ARTIFACT_BUCKET }}/${{ env.ARTIFACT_PREFIX }}/assignment-app.zip /tmp/assignment-app.zip",
-              "sudo rm -rf /var/www/html/*",
-              "sudo unzip -o /tmp/assignment-app.zip -d /var/www/html",
-              "sudo systemctl restart httpd"
+              "sudo mkdir -p /tmp/assignment-app-extract",
+              "sudo rm -rf /tmp/assignment-app-extract/*",
+              "sudo unzip -q -o /tmp/assignment-app.zip -d /tmp/assignment-app-extract",
+              "sudo cp -r /tmp/assignment-app-extract/* /var/www/html/",
+              "sudo chown -R apache:apache /var/www/html",
+              "sudo systemctl reload httpd",
+              "sudo rm -rf /tmp/assignment-app-extract /tmp/assignment-app.zip"
             ]}' \
             --query "Command.CommandId" --output text)
 

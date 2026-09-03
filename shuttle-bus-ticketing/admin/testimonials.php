@@ -30,6 +30,7 @@ require 'partials/header.php';
 <div class="testimonial-meta">
 <span><?= htmlspecialchars($t['user_name']) ?> &middot; <?= htmlspecialchars(date('d M Y', strtotime($t['created_at']))) ?></span>
 <form action="testimonial_delete.php" method="post" style="display:inline" onsubmit="return confirm('Delete this comment?');">
+<input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
 <input type="hidden" name="id" value="<?= (int)$t['id'] ?>">
 <button type="submit" class="btn-small btn-danger">Delete</button>
 </form>

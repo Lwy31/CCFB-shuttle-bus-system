@@ -17,6 +17,7 @@ $user = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'profile') {
+    verify_csrf();
     $name          = trim($_POST['name'] ?? '');
     $id_number     = trim($_POST['id_number'] ?? '');
     $faculty       = trim($_POST['faculty'] ?? '');
@@ -39,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'profile
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'password') {
+    verify_csrf();
     $current = $_POST['current_password'];
     $new = $_POST['new_password'];
     $confirm = $_POST['confirm_password'];
@@ -78,6 +80,7 @@ require 'partials/header.php';
 <?php if ($profileError): ?><p class="alert alert-error"><?= htmlspecialchars($profileError) ?></p><?php endif; ?>
 <?php if ($profileSuccess): ?><p class="alert alert-success"><?= htmlspecialchars($profileSuccess) ?></p><?php endif; ?>
 <form method="post">
+<input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
 <input type="hidden" name="form" value="profile">
 <label>Full Name <span class="required-mark">*</span> <input type="text" name="name" value="<?= htmlspecialchars($user['name']) ?>" required></label>
 <label>Email <input type="email" value="<?= htmlspecialchars($user['email']) ?>" disabled></label>
@@ -100,6 +103,7 @@ require 'partials/header.php';
 <?php if ($passwordError): ?><p class="alert alert-error"><?= htmlspecialchars($passwordError) ?></p><?php endif; ?>
 <?php if ($passwordSuccess): ?><p class="alert alert-success"><?= htmlspecialchars($passwordSuccess) ?></p><?php endif; ?>
 <form method="post">
+<input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
 <input type="hidden" name="form" value="password">
 <label>Current Password <span class="required-mark">*</span>
 <div class="password-field">

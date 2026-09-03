@@ -22,7 +22,9 @@ SetEnv DB_USER "$DB_USER"
 SetEnv DB_PASS "$DB_PASS"
 SetEnv DB_NAME "$DB_NAME"
 SetEnv S3_BUCKET "${artifact_bucket}"
+SetEnv AWS_S3_BUCKET "${artifact_bucket}"
 SetEnv AWS_REGION "${aws_region}"
+SetEnv AWS_S3_REGION "${aws_region}"
 EOF
 
 mkdir -p /var/www/html

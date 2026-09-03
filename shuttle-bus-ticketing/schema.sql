@@ -41,6 +41,7 @@ CREATE TABLE tickets (
   travel_date DATE NOT NULL,
   seat_quantity INT NOT NULL DEFAULT 1,
   total_price DECIMAL(10,2) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'CONFIRMED',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id),
   FOREIGN KEY (route_id) REFERENCES routes(id)

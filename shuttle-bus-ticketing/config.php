@@ -70,21 +70,20 @@ $user   = getenv('DB_USER') ?: 'root';
 $pass   = getenv('DB_PASS') ?: '';
 $dbname = getenv('DB_NAME') ?: 'shuttle_bus_db';
 
-// @-suppressed: even with MYSQLI_REPORT_OFF (no exception), a failed
-// connection still emits a PHP-level warning straight into the response
-// body. With display_errors on, that warning is output before the
-// connect_error check below runs, which flushes headers with the default
-// 200 status - making the http_response_code(500) call too late to matter.
-// Suppressing it here keeps the failure check as the single source of truth
-// for what gets reported.
-$conn = @new mysqli($host, $user, $pass, $dbname);
-if ($conn->connect_error) {
+// Configure fail-fast timeouts (3s connect timeout) so an unreachable
+// or slow database reports failure quickly rather than hanging ALB target
+// group health checks (which timeout at 5s).
+ini_set('default_socket_timeout', '3');
+$conn = mysqli_init();
+$conn->options(MYSQLI_OPT_CONNECT_TIMEOUT, 3);
+$connected = @$conn->real_connect($host, $user, $pass, $dbname);
+if (!$connected || $conn->connect_error) {
     // Signal unhealthy to an ALB health check (or anything else probing this
     // page) instead of silently returning 200 OK with an error message body -
     // otherwise a target group would keep routing real traffic to an
     // instance that can't reach its database.
     http_response_code(500);
-    die('Database connection failed: ' . $conn->connect_error);
+    die('Database connection failed: ' . ($conn->connect_error ?: 'Connection timed out'));
 }
 
 // Keep MySQL's NOW()/CURRENT_TIMESTAMP in step with the PHP timezone above -
@@ -124,8 +123,8 @@ $conn->query("SET time_zone = '+08:00'");
 //         fresh values from "AWS Details" and update .env (no restart
 //         needed).
 // ============================================================================
-define('AWS_S3_BUCKET', getenv('AWS_S3_BUCKET') ?: '');
-define('AWS_S3_REGION', getenv('AWS_S3_REGION') ?: 'us-east-1');
+define('AWS_S3_BUCKET', getenv('AWS_S3_BUCKET') ?: (getenv('S3_BUCKET') ?: ''));
+define('AWS_S3_REGION', getenv('AWS_S3_REGION') ?: (getenv('AWS_REGION') ?: 'us-east-1'));
 define('AWS_ACCESS_KEY_ID', getenv('AWS_ACCESS_KEY_ID') ?: '');
 define('AWS_SECRET_ACCESS_KEY', getenv('AWS_SECRET_ACCESS_KEY') ?: '');
 define('AWS_SESSION_TOKEN', getenv('AWS_SESSION_TOKEN') ?: '');

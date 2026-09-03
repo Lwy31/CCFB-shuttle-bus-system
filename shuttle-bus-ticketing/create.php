@@ -9,6 +9,7 @@ $selectedRoute = (int)($_GET['route_id'] ?? 0);
 $selectedDate  = $_GET['travel_date'] ?? date('Y-m-d');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf();
     $route_id      = (int)($_POST['route_id'] ?? 0);
     $travel_date   = $_POST['travel_date'] ?? '';
     $seat_quantity = (int)($_POST['seat_quantity'] ?? 0);
@@ -16,8 +17,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $selectedRoute = $route_id;
     $selectedDate  = $travel_date;
 
-    if ($travel_date === '' || $seat_quantity < 1) {
-        $error = 'Please choose a travel date and a valid number of seats.';
+    if ($travel_date === '' || $seat_quantity < 1 || $seat_quantity > 5) {
+        $error = 'Please choose a travel date and between 1 and 5 seats.';
     } elseif ($travel_date < date('Y-m-d')) {
         $error = 'Travel date cannot be in the past.';
     } else {
@@ -72,6 +73,7 @@ require 'partials/header.php';
 <h1>Book a Shuttle Ticket</h1>
 <?php if ($error): ?><p class="alert alert-error"><?= htmlspecialchars($error) ?></p><?php endif; ?>
 <form method="post" id="ticket-form">
+<input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
 <label>Route
 <select name="route_id" id="route-select" required>
 <?php while ($r = $routes->fetch_assoc()): ?>
@@ -81,7 +83,7 @@ require 'partials/header.php';
 </label>
 <label>Travel Date <input type="date" name="travel_date" id="travel-date" value="<?= htmlspecialchars($selectedDate) ?>" min="<?= date('Y-m-d') ?>" required></label>
 <p class="form-hint" id="route-availability-hint"></p>
-<label>Number of Seats <input type="number" name="seat_quantity" min="1" value="1" required></label>
+<label>Number of Seats (max 5) <input type="number" name="seat_quantity" min="1" max="5" value="1" required></label>
 <button type="submit">Book Ticket</button>
 </form>
 <script>

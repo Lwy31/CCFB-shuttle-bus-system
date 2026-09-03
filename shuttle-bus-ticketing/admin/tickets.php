@@ -33,6 +33,7 @@ require 'partials/header.php';
 <td><?= htmlspecialchars($t['user_email']) ?></td>
 <td>
 <form action="ticket_cancel.php" method="post" style="display:inline" onsubmit="return confirm('Cancel this ticket?');">
+<input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
 <input type="hidden" name="id" value="<?= (int)$t['id'] ?>">
 <button type="submit" class="btn-small btn-danger">Cancel</button>
 </form>

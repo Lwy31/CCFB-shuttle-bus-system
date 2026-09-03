@@ -29,6 +29,7 @@ require 'partials/header.php';
 <td>
 <a class="btn btn-secondary btn-small" href="route_edit.php?id=<?= (int)$r['id'] ?>">Edit</a>
 <form action="route_delete.php" method="post" style="display:inline" onsubmit="return confirm('Delete this route? Any existing tickets for it must be removed first.');">
+<input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
 <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
 <button type="submit" class="btn-small btn-danger">Delete</button>
 </form>
