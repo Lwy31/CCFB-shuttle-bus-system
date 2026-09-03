@@ -40,6 +40,7 @@ if [ -n "$BUCKET_NAME" ]; then
   S3_PREFIX="https://${BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com/uploads/"
   mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -D "shuttle_bus_db" -e \
     "UPDATE routes SET image_url = REPLACE(image_url, '/uploads/', '${S3_PREFIX}') WHERE image_url LIKE '/uploads/%';"
+    "UPDATE routes SET image_url = REPLACE(image_url, '/uploads/', '${S3_PREFIX}') WHERE image_url LIKE '/uploads/%';"
 fi
 
 echo "Database seeded successfully."

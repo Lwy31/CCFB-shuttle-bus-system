@@ -113,7 +113,7 @@ access in most Academy labs.
 1. [`helpers.php`](../shuttle-bus-ticketing/helpers.php) — **done.** `handle_image_upload()` / `delete_image_file()`
    now upload/delete via S3 (`aws/aws-sdk-php`, using the EC2 instance role's credentials automatically - no
    access keys anywhere in the app) whenever `S3_BUCKET` is set and the SDK is installed, storing the full
-   `https://<bucket>.s3.<region>.amazonaws.com/uploads/<file>` URL in `events.image_url`. If `S3_BUCKET` isn't
+   `https://<bucket>.s3.<region>.amazonaws.com/uploads/<file>` URL in `routes.image_url`. If `S3_BUCKET` isn't
    set or `vendor/` doesn't exist (plain local/Docker dev, no `composer install` run), both functions fall
    back to the original local-disk behavior untouched - `entity_image_url()` renders either kind of URL. The
    app's own README previously flagged this as "deliberately not wired to S3" - this is that exercise.
