@@ -6,22 +6,52 @@ require 'helpers.php';
 $search = trim($_GET['q'] ?? '');
 
 if ($search !== '') {
-    $stmt = $conn->prepare('SELECT * FROM routes WHERE route_name LIKE ? ORDER BY departure_time');
+    $stmt = $conn->prepare('SELECT * FROM routes WHERE route_name LIKE ? ORDER BY route_name');
     $likeSearch = '%' . $search . '%';
     $stmt->bind_param('s', $likeSearch);
     $stmt->execute();
     $routes = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
 } else {
-    $routes = $conn->query('SELECT * FROM routes ORDER BY departure_time')->fetch_all(MYSQLI_ASSOC);
+    $routes = $conn->query('SELECT * FROM routes ORDER BY route_name')->fetch_all(MYSQLI_ASSOC);
 }
+
+// Every departure time for every route shown above, grouped under its
+// route id - a route can run several times a day, and each of those trips
+// needs its own "Book Ticket" link and its own remaining-seats count.
+$tripsByRoute = [];
+if (!empty($routes)) {
+    $routeIds = array_column($routes, 'id');
+    $placeholders = implode(',', array_fill(0, count($routeIds), '?'));
+    $types = str_repeat('i', count($routeIds));
+    $stmt = $conn->prepare("SELECT id, route_id, departure_time FROM trips WHERE route_id IN ($placeholders) ORDER BY departure_time");
+    $stmt->bind_param($types, ...$routeIds);
+    $stmt->execute();
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $trip) {
+        $tripsByRoute[(int)$trip['route_id']][] = $trip;
+    }
+    $stmt->close();
+}
+
+// Seats already booked today, per trip, so each departure can show how
+// many are left - without this, "40 seats/bus" reads as if all 40 are free.
+$today = date('Y-m-d');
+$stmt = $conn->prepare('SELECT trip_id, COALESCE(SUM(seat_quantity), 0) AS booked FROM tickets WHERE travel_date = ? GROUP BY trip_id');
+$stmt->bind_param('s', $today);
+$stmt->execute();
+$bookedTodayByTrip = [];
+foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+    $bookedTodayByTrip[(int)$row['trip_id']] = (int)$row['booked'];
+}
+$stmt->close();
 
 $myTickets = [];
 if ($uid = current_user_id()) {
     $stmt = $conn->prepare('
-        SELECT t.id, r.route_name, r.origin, r.destination, r.departure_time, t.travel_date, t.seat_quantity, t.total_price
+        SELECT t.id, r.route_name, r.origin, r.destination, tr.departure_time, t.travel_date, t.seat_quantity, t.total_price
         FROM tickets t
-        JOIN routes r ON r.id = t.route_id
+        JOIN trips tr ON tr.id = t.trip_id
+        JOIN routes r ON r.id = tr.route_id
         WHERE t.user_id = ?
         ORDER BY t.travel_date DESC
     ');
@@ -33,7 +63,13 @@ if ($uid = current_user_id()) {
 
 $pageTitle = 'Campus Shuttle Bus Ticketing';
 require 'partials/header.php';
+
+$flashSuccess = $_SESSION['flash_success'] ?? null;
+$flashError = $_SESSION['flash_error'] ?? null;
+unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 ?>
+<?php if ($flashSuccess): ?><p class="alert alert-success"><?= htmlspecialchars($flashSuccess) ?></p><?php endif; ?>
+<?php if ($flashError): ?><p class="alert alert-error"><?= htmlspecialchars($flashError) ?></p><?php endif; ?>
 <section class="hero">
 <h1>Campus Shuttle Bus Ticketing</h1>
 <p>Book your seat on a campus shuttle route ahead of time.</p>
@@ -74,11 +110,33 @@ require 'partials/header.php';
 <img class="card-thumb" src="<?= htmlspecialchars(entity_image_url($r)) ?>" alt="<?= htmlspecialchars($r['route_name']) ?>" loading="lazy">
 <h3><?= htmlspecialchars($r['route_name']) ?></h3>
 <p><?= htmlspecialchars($r['origin']) ?> &rarr; <?= htmlspecialchars($r['destination']) ?></p>
-<p>Departs <?= htmlspecialchars($r['departure_time']) ?> &middot; RM<?= number_format($r['price'], 2) ?> &middot; <?= (int)$r['total_seats'] ?> seats/bus</p>
-<?php if (current_user_id()): ?>
-<a class="btn" href="create.php?route_id=<?= (int)$r['id'] ?>">Book Ticket</a>
+<p>RM<?= number_format($r['price'], 2) ?> &middot; <?= (int)$r['total_seats'] ?> seats/bus</p>
+<?php $trips = $tripsByRoute[(int)$r['id']] ?? []; ?>
+<?php if (empty($trips)): ?>
+<p class="form-hint">No departures scheduled yet.</p>
 <?php else: ?>
-<a class="btn" href="login.php">Login to Book</a>
+<div class="trip-list">
+<?php foreach ($trips as $trip): ?>
+<?php
+$remainingToday = max(0, (int)$r['total_seats'] - ($bookedTodayByTrip[(int)$trip['id']] ?? 0));
+?>
+<div class="trip-row">
+<div>
+<strong><?= htmlspecialchars($trip['departure_time']) ?></strong>
+<?php if ($remainingToday <= 0): ?>
+<span class="badge badge-danger">Fully booked today</span>
+<?php else: ?>
+<span class="badge badge-accent"><?= $remainingToday ?> seat<?= $remainingToday === 1 ? '' : 's' ?> left today</span>
+<?php endif; ?>
+</div>
+<?php if (current_user_id()): ?>
+<a class="btn btn-small" href="create.php?trip_id=<?= (int)$trip['id'] ?>">Book</a>
+<?php else: ?>
+<a class="btn btn-small" href="login.php">Login to Book</a>
+<?php endif; ?>
+</div>
+<?php endforeach; ?>
+</div>
 <?php endif; ?>
 </div>
 <?php endforeach; ?>
@@ -108,7 +166,7 @@ require 'partials/header.php';
 <td><span class="badge badge-accent"><?= htmlspecialchars($t['status'] ?? 'CONFIRMED') ?></span></td>
 <td>
 <a class="btn btn-secondary btn-small" href="edit.php?id=<?= (int)$t['id'] ?>">Edit</a>
-<form action="delete.php" method="post" style="display:inline" onsubmit="return confirm('Cancel this ticket?');">
+<form action="delete.php" method="post" style="display:inline" onsubmit="return confirm('Click OK to cancel this ticket. Click Cancel to keep it.');">
 <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
 <input type="hidden" name="id" value="<?= (int)$t['id'] ?>">
 <button type="submit" class="btn-small btn-danger">Cancel</button>

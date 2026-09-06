@@ -4,9 +4,10 @@ require '../auth.php';
 require_admin();
 
 $tickets = $conn->query('
-    SELECT t.id, r.route_name, t.travel_date, t.seat_quantity, t.total_price, u.name AS user_name, u.email AS user_email
+    SELECT t.id, r.route_name, tr.departure_time, t.travel_date, t.seat_quantity, t.total_price, u.name AS user_name, u.email AS user_email
     FROM tickets t
-    JOIN routes r ON r.id = t.route_id
+    JOIN trips tr ON tr.id = t.trip_id
+    JOIN routes r ON r.id = tr.route_id
     JOIN users u ON u.id = t.user_id
     ORDER BY t.travel_date DESC
 ')->fetch_all(MYSQLI_ASSOC);
@@ -22,10 +23,11 @@ require 'partials/header.php';
 </div>
 <?php else: ?>
 <table>
-<tr><th>Route</th><th>Travel Date</th><th>Seats</th><th>Total (RM)</th><th>Booked By</th><th>Email</th><th>Actions</th></tr>
+<tr><th>Route</th><th>Departs</th><th>Travel Date</th><th>Seats</th><th>Total (RM)</th><th>Booked By</th><th>Email</th><th>Actions</th></tr>
 <?php foreach ($tickets as $t): ?>
 <tr>
 <td><?= htmlspecialchars($t['route_name']) ?></td>
+<td><?= htmlspecialchars($t['departure_time']) ?></td>
 <td><?= htmlspecialchars($t['travel_date']) ?></td>
 <td><?= (int)$t['seat_quantity'] ?></td>
 <td><?= number_format($t['total_price'], 2) ?></td>

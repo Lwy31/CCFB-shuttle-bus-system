@@ -23,28 +23,46 @@ CREATE TABLE routes (
   route_name VARCHAR(100) NOT NULL,
   origin VARCHAR(100) NOT NULL,
   destination VARCHAR(100) NOT NULL,
-  departure_time VARCHAR(20) NOT NULL,
   price DECIMAL(10,2) NOT NULL,
   total_seats INT NOT NULL DEFAULT 40,
   image_url VARCHAR(500) NULL
 );
 
-INSERT INTO routes (route_name, origin, destination, departure_time, price, total_seats, image_url) VALUES
-('Campus - City Centre Express', 'Main Campus', 'City Centre', '08:00', 3.00, 40, '/uploads/sample-city-express.jpg'),
-('Campus - LRT Shuttle', 'Main Campus', 'LRT Station', '09:30', 2.00, 30, '/uploads/sample-lrt-shuttle.jpg'),
-('Campus - Hostel Loop', 'Main Campus', 'Student Hostel', '17:30', 0.00, 25, '/uploads/sample-hostel-loop.jpg');
+INSERT INTO routes (route_name, origin, destination, price, total_seats, image_url) VALUES
+('Campus - City Centre Express', 'Main Campus', 'City Centre', 3.00, 40, '/uploads/sample-city-express.jpg'),
+('Campus - LRT Shuttle', 'Main Campus', 'LRT Station', 2.00, 30, '/uploads/sample-lrt-shuttle.jpg'),
+('Campus - Hostel Loop', 'Main Campus', 'Student Hostel', 0.00, 25, '/uploads/sample-hostel-loop.jpg');
+
+-- A route (e.g. "Campus - City Centre Express") can run several times a day.
+-- Each of those individual departure times is a "trip" - the actual
+-- bookable unit. All trips of a route share the same bus/price/capacity
+-- (those live on the route row), so a trip only needs to record when it
+-- leaves.
+CREATE TABLE trips (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  route_id INT NOT NULL,
+  departure_time VARCHAR(20) NOT NULL,
+  FOREIGN KEY (route_id) REFERENCES routes(id),
+  UNIQUE KEY uniq_route_departure (route_id, departure_time)
+);
+
+INSERT INTO trips (route_id, departure_time) VALUES
+(1, '08:00'),
+(2, '09:30'),
+(3, '17:30'),
+(3, '19:00');
 
 CREATE TABLE tickets (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
-  route_id INT NOT NULL,
+  trip_id INT NOT NULL,
   travel_date DATE NOT NULL,
   seat_quantity INT NOT NULL DEFAULT 1,
   total_price DECIMAL(10,2) NOT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'CONFIRMED',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (route_id) REFERENCES routes(id)
+  FOREIGN KEY (trip_id) REFERENCES trips(id)
 );
 
 CREATE TABLE testimonials (

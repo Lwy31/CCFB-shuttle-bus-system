@@ -32,22 +32,24 @@ $testimonialStats = $conn->query('
     FROM testimonials
 ')->fetch_assoc();
 
-// Popular routes by seats booked
+// Popular routes by seats booked - aggregated across all of a route's
+// departure times, since a route can now run several times a day.
 $popularRoutes = $conn->query('
     SELECT 
         r.id, 
         r.route_name, 
         r.origin, 
         r.destination, 
-        r.departure_time, 
         r.price, 
         r.total_seats, 
+        GROUP_CONCAT(DISTINCT tr.departure_time ORDER BY tr.departure_time SEPARATOR ", ") AS departure_times,
         COALESCE(SUM(t.seat_quantity), 0) AS seats_booked, 
         COUNT(t.id) AS ticket_count
     FROM routes r
-    LEFT JOIN tickets t ON t.route_id = r.id
+    LEFT JOIN trips tr ON tr.route_id = r.id
+    LEFT JOIN tickets t ON t.trip_id = tr.id
     GROUP BY r.id
-    ORDER BY seats_booked DESC, r.departure_time ASC
+    ORDER BY seats_booked DESC, r.route_name ASC
     LIMIT 5
 ')->fetch_all(MYSQLI_ASSOC);
 
@@ -56,6 +58,7 @@ $recentTickets = $conn->query('
     SELECT 
         t.id, 
         r.route_name, 
+        tr.departure_time,
         t.travel_date, 
         t.seat_quantity, 
         t.total_price, 
@@ -63,7 +66,8 @@ $recentTickets = $conn->query('
         u.email AS user_email,
         t.created_at
     FROM tickets t
-    JOIN routes r ON r.id = t.route_id
+    JOIN trips tr ON tr.id = t.trip_id
+    JOIN routes r ON r.id = tr.route_id
     JOIN users u ON u.id = t.user_id
     ORDER BY t.id DESC
     LIMIT 6
@@ -132,7 +136,7 @@ require 'partials/header.php';
             <thead>
                 <tr>
                     <th>Route Name</th>
-                    <th>Departure</th>
+                    <th>Departures</th>
                     <th>Bus Capacity</th>
                     <th>Total Seats Sold</th>
                     <th>Total Orders</th>
@@ -143,7 +147,7 @@ require 'partials/header.php';
                 <?php foreach ($popularRoutes as $pr): ?>
                 <tr>
                     <td><strong><?= htmlspecialchars($pr['route_name']) ?></strong><br><span style="font-size: 0.85rem; color: var(--text-muted, #64748b);"><?= htmlspecialchars($pr['origin']) ?> &rarr; <?= htmlspecialchars($pr['destination']) ?></span></td>
-                    <td><?= htmlspecialchars($pr['departure_time']) ?></td>
+                    <td><?= htmlspecialchars($pr['departure_times'] ?: '—') ?></td>
                     <td><?= (int)$pr['total_seats'] ?> seats</td>
                     <td><span class="badge badge-accent"><?= (int)$pr['seats_booked'] ?> seats</span></td>
                     <td><?= (int)$pr['ticket_count'] ?></td>

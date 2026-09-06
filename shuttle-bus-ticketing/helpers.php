@@ -1,4 +1,23 @@
 <?php
+// A single user can hold at most this many seats on one trip (a specific
+// route + departure time) for one travel date, across all of their
+// (non-cancelled) tickets combined - not just within a single booking.
+// Without this, someone can dodge the "max 5 per booking" rule just by
+// submitting the form multiple times.
+const MAX_SEATS_PER_TRIP_PER_DATE = 5;
+
+// How many seats a given user already holds on a trip/date, summed across
+// all their tickets. Pass $excludeTicketId when editing an existing ticket
+// so that ticket doesn't count against itself.
+function user_seats_booked($conn, $uid, $trip_id, $travel_date, $excludeTicketId = 0) {
+    $stmt = $conn->prepare('SELECT COALESCE(SUM(seat_quantity), 0) AS booked FROM tickets WHERE user_id = ? AND trip_id = ? AND travel_date = ? AND id != ?');
+    $stmt->bind_param('iisi', $uid, $trip_id, $travel_date, $excludeTicketId);
+    $stmt->execute();
+    $booked = (int)$stmt->get_result()->fetch_assoc()['booked'];
+    $stmt->close();
+    return $booked;
+}
+
 // TAR UMT's faculties and centres, used to populate the Faculty dropdown on
 // registration and the account page instead of a free-text field.
 function tarumt_faculties() {
