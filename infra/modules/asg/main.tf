@@ -38,6 +38,7 @@ resource "aws_launch_template" "app" {
     artifact_bucket = var.artifact_bucket
     artifact_key    = var.artifact_key
     sns_topic_arn   = var.sns_topic_arn
+    cdn_domain      = var.cdn_domain
   }))
 
   tag_specifications {

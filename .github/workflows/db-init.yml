@@ -38,20 +38,21 @@ jobs:
         with:
           terraform_version: "1.9.0"
 
-      - name: Resolve S3 bucket from Terraform output
+      - name: Resolve S3 bucket and CloudFront domain from Terraform output
         working-directory: infra/envs/sandbox
         run: |
           terraform init -input=false
           echo "SCHEMA_BUCKET=$(terraform output -raw s3_bucket_name)" >> "$GITHUB_ENV"
+          echo "CLOUDFRONT_DOMAIN=$(terraform output -raw cloudfront_domain_name 2>/dev/null || echo '')" >> "$GITHUB_ENV"
 
       - name: Upload schema.sql, seed script, and sample images to S3
         run: |
           aws s3 cp shuttle-bus-ticketing/schema.sql "s3://${{ env.SCHEMA_BUCKET }}/${{ env.SCHEMA_KEY }}"
           aws s3 cp infra/scripts/seed-db.sh "s3://${{ env.SCHEMA_BUCKET }}/${{ env.SCRIPT_KEY }}"
-          # Upload sample event images so the seed data's image_url references
-          # resolve. seed-db.sh will rewrite the DB paths to S3 URLs after import.
+          # Upload sample event images with long-term immutable Cache-Control so browsers cache them locally
           aws s3 sync shuttle-bus-ticketing/uploads/ "s3://${{ env.SCHEMA_BUCKET }}/uploads/" \
-            --exclude "index.html"
+            --exclude "index.html" \
+            --cache-control "public, max-age=31536000, immutable"
 
       - name: Run seed script on a running app instance via SSM
         run: |
@@ -73,7 +74,7 @@ jobs:
             --parameters '{"commands":[
               "aws s3 cp s3://${{ env.SCHEMA_BUCKET }}/${{ env.SCRIPT_KEY }} /tmp/seed-db.sh",
               "chmod +x /tmp/seed-db.sh",
-              "AWS_REGION=${{ env.AWS_REGION }} /tmp/seed-db.sh s3://${{ env.SCHEMA_BUCKET }}/${{ env.SCHEMA_KEY }} ${{ env.SCHEMA_BUCKET }}"
+              "AWS_REGION=${{ env.AWS_REGION }} /tmp/seed-db.sh s3://${{ env.SCHEMA_BUCKET }}/${{ env.SCHEMA_KEY }} ${{ env.SCHEMA_BUCKET }} ${{ env.CLOUDFRONT_DOMAIN }}"
             ]}' \
             --query "Command.CommandId" --output text)
 

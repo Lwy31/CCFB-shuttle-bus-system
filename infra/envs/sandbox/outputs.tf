@@ -24,3 +24,9 @@ output "sns_topic_arn" {
   description = "ARN of the shared alerts/notifications SNS topic."
   value       = module.sns.topic_arn
 }
+
+output "cloudfront_domain_name" {
+  description = "CloudFront CDN domain for fast static photo and upload delivery."
+  value       = module.cloudfront.cloudfront_domain_name
+}
+
