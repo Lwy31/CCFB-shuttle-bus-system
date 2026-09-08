@@ -24,3 +24,8 @@ variable "health_check_path" {
   type        = string
   default     = "/healthz.php"
 }
+
+variable "sns_topic_arn" {
+  description = "SNS topic ARN that ALB CloudWatch alarms (zero healthy hosts, high 5xx rate) publish to."
+  type        = string
+}

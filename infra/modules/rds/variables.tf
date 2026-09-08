@@ -49,3 +49,8 @@ variable "engine_version" {
   type        = string
   default     = "8.0"
 }
+
+variable "sns_topic_arn" {
+  description = "SNS topic ARN that RDS CloudWatch alarms (high CPU, low free storage) publish to."
+  type        = string
+}

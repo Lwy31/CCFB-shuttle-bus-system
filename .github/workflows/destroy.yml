@@ -19,7 +19,7 @@ jobs:
     if: github.event.inputs.confirm == 'destroy'
     defaults:
       run:
-        working-directory: ./examples/basic
+        working-directory: ./infra/envs/sandbox
     steps:
       - uses: actions/checkout@v4
 

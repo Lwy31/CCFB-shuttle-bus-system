@@ -78,3 +78,8 @@ variable "cpu_target_value" {
   type        = number
   default     = 60
 }
+
+variable "sns_topic_arn" {
+  description = "SNS topic ARN for both the ASG's own CloudWatch alarm (instances below desired) and the application-level notifications (new bookings/testimonials) published from PHP - passed into user-data as SNS_TOPIC_ARN."
+  type        = string
+}

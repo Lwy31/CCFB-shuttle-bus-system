@@ -44,3 +44,46 @@ resource "aws_lb_listener" "http" {
     target_group_arn = aws_lb_target_group.app.arn
   }
 }
+
+# Ops alert: fires when the ALB has been routing to zero healthy instances
+# for 2 straight evaluation periods - i.e. the site is actually down, not
+# just a single instance mid-boot/instance-refresh.
+resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
+  alarm_name          = "${var.name_prefix}-alb-zero-healthy-hosts"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "HealthyHostCount"
+  namespace           = "AWS/ApplicationELB"
+  period              = 60
+  statistic           = "Minimum"
+  threshold           = 1
+  alarm_description   = "No healthy EC2 instances behind the ALB - the site is unreachable."
+  alarm_actions       = [var.sns_topic_arn]
+  ok_actions          = [var.sns_topic_arn]
+  treat_missing_data  = "breaching"
+
+  dimensions = {
+    LoadBalancer = aws_lb.this.arn_suffix
+    TargetGroup  = aws_lb_target_group.app.arn_suffix
+  }
+}
+
+# Ops alert: a burst of server errors (buggy deploy, DB connection
+# exhaustion, etc.) even while instances still register as healthy.
+resource "aws_cloudwatch_metric_alarm" "high_5xx_rate" {
+  alarm_name          = "${var.name_prefix}-alb-high-5xx-rate"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "HTTPCode_Target_5XX_Count"
+  namespace           = "AWS/ApplicationELB"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 10
+  alarm_description   = "More than 10 HTTP 5xx responses from app instances in 5 minutes."
+  alarm_actions       = [var.sns_topic_arn]
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    LoadBalancer = aws_lb.this.arn_suffix
+  }
+}

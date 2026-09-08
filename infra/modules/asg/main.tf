@@ -37,6 +37,7 @@ resource "aws_launch_template" "app" {
     aws_region      = var.aws_region
     artifact_bucket = var.artifact_bucket
     artifact_key    = var.artifact_key
+    sns_topic_arn   = var.sns_topic_arn
   }))
 
   tag_specifications {
@@ -67,6 +68,14 @@ resource "aws_autoscaling_group" "app" {
   health_check_grace_period = 300
   target_group_arns         = [var.target_group_arn]
 
+  # Needed for the GroupInServiceInstances alarm below - the ASG doesn't
+  # publish its own CloudWatch metrics unless this is turned on.
+  metrics_granularity = "1Minute"
+  enabled_metrics = [
+    "GroupInServiceInstances",
+    "GroupDesiredCapacity",
+  ]
+
   launch_template {
     id      = aws_launch_template.app.id
     version = "$Latest"
@@ -90,6 +99,28 @@ resource "aws_autoscaling_group" "app" {
     key                 = "App"
     value               = "${var.name_prefix}-shuttle-bus-ticketing"
     propagate_at_launch = true
+  }
+}
+
+# Ops alert: fewer in-service instances than desired for a sustained period
+# usually means instances are crash-looping on boot (bad deploy, user-data
+# failure) rather than just a brief mid-refresh dip.
+resource "aws_cloudwatch_metric_alarm" "instances_below_desired" {
+  alarm_name          = "${var.name_prefix}-asg-instances-below-desired"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 5
+  metric_name         = "GroupInServiceInstances"
+  namespace           = "AWS/AutoScaling"
+  period              = 60
+  statistic           = "Average"
+  threshold           = var.min_size
+  alarm_description   = "Fewer in-service instances than min_size for 5 minutes straight."
+  alarm_actions       = [var.sns_topic_arn]
+  ok_actions          = [var.sns_topic_arn]
+  treat_missing_data  = "breaching"
+
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.app.name
   }
 }
 
