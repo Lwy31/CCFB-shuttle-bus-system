@@ -38,12 +38,11 @@ jobs:
         with:
           terraform_version: "1.9.0"
 
-      - name: Resolve S3 bucket and CloudFront domain from Terraform output
+      - name: Resolve S3 bucket from Terraform output
         working-directory: infra/envs/sandbox
         run: |
           terraform init -input=false
           echo "SCHEMA_BUCKET=$(terraform output -raw s3_bucket_name)" >> "$GITHUB_ENV"
-          echo "CLOUDFRONT_DOMAIN=$(terraform output -raw cloudfront_domain_name 2>/dev/null || echo '')" >> "$GITHUB_ENV"
 
       - name: Upload schema.sql, seed script, and sample images to S3
         run: |
@@ -74,7 +73,7 @@ jobs:
             --parameters '{"commands":[
               "aws s3 cp s3://${{ env.SCHEMA_BUCKET }}/${{ env.SCRIPT_KEY }} /tmp/seed-db.sh",
               "chmod +x /tmp/seed-db.sh",
-              "AWS_REGION=${{ env.AWS_REGION }} /tmp/seed-db.sh s3://${{ env.SCHEMA_BUCKET }}/${{ env.SCHEMA_KEY }} ${{ env.SCHEMA_BUCKET }} ${{ env.CLOUDFRONT_DOMAIN }}"
+              "AWS_REGION=${{ env.AWS_REGION }} /tmp/seed-db.sh s3://${{ env.SCHEMA_BUCKET }}/${{ env.SCHEMA_KEY }} ${{ env.SCHEMA_BUCKET }}"
             ]}' \
             --query "Command.CommandId" --output text)
 

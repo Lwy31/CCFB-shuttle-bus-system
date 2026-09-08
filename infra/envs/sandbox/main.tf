@@ -78,14 +78,6 @@ module "alb" {
   sns_topic_arn     = module.sns.topic_arn
 }
 
-module "cloudfront" {
-  source = "../../modules/cloudfront"
-
-  name_prefix = var.name_prefix
-  bucket_name = module.s3.bucket_id
-  aws_region  = var.aws_region
-}
-
 module "asg" {
   source = "../../modules/asg"
 
@@ -104,6 +96,6 @@ module "asg" {
   artifact_bucket       = module.s3.bucket_id
   artifact_key          = var.artifact_key
   sns_topic_arn         = module.sns.topic_arn
-  cdn_domain            = module.cloudfront.cloudfront_domain_name
 }
+
 

@@ -113,7 +113,7 @@ function handle_image_upload($file, $uploadDir, $prefix = 'photo') {
 
     $filename = uniqid($prefix . '_', true) . '.' . $allowedMimes[$imageInfo['mime']];
 
-    // Optimize image size: if GD is available, resize wide images (max 1200px)
+    // Optimize image size: if GD is available, resize wide images (max 800px)
     // and recompress to significantly reduce payload transfer over the network.
     $fileData = file_get_contents($file['tmp_name']);
     if (function_exists('imagecreatefromstring')) {
@@ -121,7 +121,7 @@ function handle_image_upload($file, $uploadDir, $prefix = 'photo') {
         if ($srcImg !== false) {
             $origW = imagesx($srcImg);
             $origH = imagesy($srcImg);
-            $maxW = 1200;
+            $maxW = 800;
             if ($origW > $maxW) {
                 $newW = $maxW;
                 $newH = (int)($origH * ($maxW / $origW));
@@ -136,7 +136,7 @@ function handle_image_upload($file, $uploadDir, $prefix = 'photo') {
             if ($imageInfo['mime'] === 'image/png') {
                 imagepng($srcImg, null, 8);
             } else {
-                imagejpeg($srcImg, null, 82);
+                imagejpeg($srcImg, null, 80);
             }
             $fileData = ob_get_clean();
             imagedestroy($srcImg);
