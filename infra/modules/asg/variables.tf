@@ -74,9 +74,9 @@ variable "desired_capacity" {
 }
 
 variable "cpu_target_value" {
-  description = "Target average CPU utilization (%) for the scaling policy."
+  description = "Target average CPU utilization (%) for the scaling policy. 50% triggers early scale-out under sudden traffic surges."
   type        = number
-  default     = 60
+  default     = 50
 }
 
 variable "sns_topic_arn" {

@@ -32,9 +32,9 @@ variable "private_subnet_cidrs" {
 }
 
 variable "instance_type" {
-  description = "EC2 instance type for app servers. Bump this later if t3.micro is insufficient - no other changes needed."
+  description = "EC2 instance type for app servers. Upgraded to t3.small for 2GB RAM to prevent memory exhaustion under traffic surges."
   type        = string
-  default     = "t3.micro"
+  default     = "t3.small"
 }
 
 variable "instance_profile_name" {

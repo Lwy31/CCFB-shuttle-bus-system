@@ -67,6 +67,7 @@ resource "aws_autoscaling_group" "app" {
   # healthz.php - a shorter window risks the ASG killing the instance mid-boot
   # and looping. 300s comfortably covers a cold boot.
   health_check_grace_period = 300
+  default_cooldown          = 300
   target_group_arns         = [var.target_group_arn]
 
   # Needed for the GroupInServiceInstances alarm below - the ASG doesn't
@@ -126,9 +127,10 @@ resource "aws_cloudwatch_metric_alarm" "instances_below_desired" {
 }
 
 resource "aws_autoscaling_policy" "cpu_target_tracking" {
-  name                   = "${var.name_prefix}-asg-cpu-scaling"
-  autoscaling_group_name = aws_autoscaling_group.app.name
-  policy_type            = "TargetTrackingScaling"
+  name                      = "${var.name_prefix}-asg-cpu-scaling"
+  autoscaling_group_name    = aws_autoscaling_group.app.name
+  policy_type               = "TargetTrackingScaling"
+  estimated_instance_warmup = 180
 
   target_tracking_configuration {
     predefined_metric_specification {
