@@ -25,6 +25,8 @@ resource "terraform_data" "uploads" {
     command = <<-EOT
       aws s3api create-bucket --bucket "${var.bucket_name}" --region us-east-1
       aws s3api put-bucket-tagging --bucket "${var.bucket_name}" --tagging "TagSet=[{Key=Name,Value=${var.name_prefix}-s3-uploads}]"
+      aws s3api put-public-access-block --bucket "${var.bucket_name}" --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=false,RestrictPublicBuckets=false"
+      sleep 5
     EOT
   }
 
