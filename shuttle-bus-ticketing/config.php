@@ -65,10 +65,10 @@ date_default_timezone_set('Asia/Kuala_Lumpur');
 //   $user = 'admin';
 //   $pass = 'your-rds-master-password';
 // ============================================================================
-$host   = getenv('DB_HOST') ?: 'localhost';
-$user   = getenv('DB_USER') ?: 'root';
-$pass   = getenv('DB_PASS') ?: '';
-$dbname = getenv('DB_NAME') ?: 'shuttle_bus_db';
+$host   = $_SERVER['DB_HOST'] ?? getenv('DB_HOST') ?: 'localhost';
+$user   = $_SERVER['DB_USER'] ?? getenv('DB_USER') ?: 'root';
+$pass   = $_SERVER['DB_PASS'] ?? getenv('DB_PASS') ?: '';
+$dbname = $_SERVER['DB_NAME'] ?? getenv('DB_NAME') ?: 'shuttle_bus_db';
 
 // @-suppressed: even with MYSQLI_REPORT_OFF (no exception), a failed
 // connection still emits a PHP-level warning straight into the response
@@ -124,8 +124,8 @@ $conn->query("SET time_zone = '+08:00'");
 //         fresh values from "AWS Details" and update .env (no restart
 //         needed).
 // ============================================================================
-define('AWS_S3_BUCKET', getenv('AWS_S3_BUCKET') ?: '');
-define('AWS_S3_REGION', getenv('AWS_S3_REGION') ?: 'us-east-1');
-define('AWS_ACCESS_KEY_ID', getenv('AWS_ACCESS_KEY_ID') ?: '');
-define('AWS_SECRET_ACCESS_KEY', getenv('AWS_SECRET_ACCESS_KEY') ?: '');
-define('AWS_SESSION_TOKEN', getenv('AWS_SESSION_TOKEN') ?: '');
+define('AWS_S3_BUCKET', $_SERVER['AWS_S3_BUCKET'] ?? $_SERVER['S3_BUCKET'] ?? getenv('AWS_S3_BUCKET') ?: getenv('S3_BUCKET') ?: '');
+define('AWS_S3_REGION', $_SERVER['AWS_S3_REGION'] ?? $_SERVER['AWS_REGION'] ?? getenv('AWS_S3_REGION') ?: getenv('AWS_REGION') ?: 'us-east-1');
+define('AWS_ACCESS_KEY_ID', $_SERVER['AWS_ACCESS_KEY_ID'] ?? getenv('AWS_ACCESS_KEY_ID') ?: '');
+define('AWS_SECRET_ACCESS_KEY', $_SERVER['AWS_SECRET_ACCESS_KEY'] ?? getenv('AWS_SECRET_ACCESS_KEY') ?: '');
+define('AWS_SESSION_TOKEN', $_SERVER['AWS_SESSION_TOKEN'] ?? getenv('AWS_SESSION_TOKEN') ?: '');
