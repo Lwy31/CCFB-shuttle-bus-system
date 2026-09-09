@@ -1,4 +1,23 @@
 <?php
+// A single user can hold at most this many seats on one trip (a specific
+// route + departure time) for one travel date, across all of their
+// (non-cancelled) tickets combined - not just within a single booking.
+// Without this, someone can dodge the "max 5 per booking" rule just by
+// submitting the form multiple times.
+const MAX_SEATS_PER_TRIP_PER_DATE = 5;
+
+// How many seats a given user already holds on a trip/date, summed across
+// all their tickets. Pass $excludeTicketId when editing an existing ticket
+// so that ticket doesn't count against itself.
+function user_seats_booked($conn, $uid, $trip_id, $travel_date, $excludeTicketId = 0) {
+    $stmt = $conn->prepare('SELECT COALESCE(SUM(seat_quantity), 0) AS booked FROM tickets WHERE user_id = ? AND trip_id = ? AND travel_date = ? AND id != ?');
+    $stmt->bind_param('iisi', $uid, $trip_id, $travel_date, $excludeTicketId);
+    $stmt->execute();
+    $booked = (int)$stmt->get_result()->fetch_assoc()['booked'];
+    $stmt->close();
+    return $booked;
+}
+
 // TAR UMT's faculties and centres, used to populate the Faculty dropdown on
 // registration and the account page instead of a free-text field.
 function tarumt_faculties() {
@@ -94,14 +113,44 @@ function handle_image_upload($file, $uploadDir, $prefix = 'photo') {
 
     $filename = uniqid($prefix . '_', true) . '.' . $allowedMimes[$imageInfo['mime']];
 
+    // Optimize image size: if GD is available, resize wide images (max 800px)
+    // and recompress to significantly reduce payload transfer over the network.
+    $fileData = file_get_contents($file['tmp_name']);
+    if (function_exists('imagecreatefromstring')) {
+        $srcImg = @imagecreatefromstring($fileData);
+        if ($srcImg !== false) {
+            $origW = imagesx($srcImg);
+            $origH = imagesy($srcImg);
+            $maxW = 800;
+            if ($origW > $maxW) {
+                $newW = $maxW;
+                $newH = (int)($origH * ($maxW / $origW));
+                $dstImg = imagecreatetruecolor($newW, $newH);
+                imagealphablending($dstImg, false);
+                imagesavealpha($dstImg, true);
+                imagecopyresampled($dstImg, $srcImg, 0, 0, 0, 0, $newW, $newH, $origW, $origH);
+                imagedestroy($srcImg);
+                $srcImg = $dstImg;
+            }
+            ob_start();
+            if ($imageInfo['mime'] === 'image/png') {
+                imagepng($srcImg, null, 8);
+            } else {
+                imagejpeg($srcImg, null, 80);
+            }
+            $fileData = ob_get_clean();
+            imagedestroy($srcImg);
+        }
+    }
+
     if (AWS_S3_BUCKET !== '') {
-        return s3_put_object($filename, file_get_contents($file['tmp_name']), $imageInfo['mime']);
+        return s3_put_object('uploads/' . $filename, $fileData, $imageInfo['mime']);
     }
 
     if (!is_dir($uploadDir)) {
         mkdir($uploadDir, 0755, true);
     }
-    if (!move_uploaded_file($file['tmp_name'], $uploadDir . '/' . $filename)) {
+    if (file_put_contents($uploadDir . '/' . $filename, $fileData) === false) {
         return [null, 'Could not save the uploaded image.'];
     }
 
@@ -271,6 +320,8 @@ function s3_put_object($key, $data, $contentType) {
 
     [$host, $headers] = s3_sign('PUT', AWS_S3_BUCKET, AWS_S3_REGION, $key, $data, $credentials);
     $headers['Content-Type'] = $contentType;
+    // Set long-lived immutable cache control so browsers cache static photos locally for 1 year
+    $headers['Cache-Control'] = 'public, max-age=31536000, immutable';
 
     $headerLines = '';
     foreach ($headers as $name => $value) {
@@ -292,16 +343,28 @@ function s3_put_object($key, $data, $contentType) {
         return [null, "S3 upload failed (HTTP $status)."];
     }
 
+    // Return CloudFront CDN URL if configured, otherwise direct S3 URL
+    $cdnDomain = defined('AWS_CDN_DOMAIN') ? trim(AWS_CDN_DOMAIN) : '';
+    if ($cdnDomain !== '') {
+        return ["https://$cdnDomain/$key", null];
+    }
+
     return ["https://$host/$key", null];
 }
 
 // Deletes an object previously uploaded to S3, given the URL stored in
 // image_url. Does nothing if the URL doesn't belong to the configured
-// bucket (defensive - shouldn't happen in practice).
+// bucket or CDN domain (defensive - shouldn't happen in practice).
 function s3_delete_object($url) {
     $host = AWS_S3_BUCKET . '.s3.' . AWS_S3_REGION . '.amazonaws.com';
-    $prefix = "https://$host/";
-    if (!str_starts_with($url, $prefix)) {
+    $cdnDomain = defined('AWS_CDN_DOMAIN') ? trim(AWS_CDN_DOMAIN) : '';
+
+    $prefix = '';
+    if (str_starts_with($url, "https://$host/")) {
+        $prefix = "https://$host/";
+    } elseif ($cdnDomain !== '' && str_starts_with($url, "https://$cdnDomain/")) {
+        $prefix = "https://$cdnDomain/";
+    } else {
         return;
     }
     $key = substr($url, strlen($prefix));

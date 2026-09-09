@@ -6,6 +6,7 @@ require_admin();
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf();
     $name    = trim($_POST['name'] ?? '');
     $email   = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
@@ -47,6 +48,7 @@ require 'partials/header.php';
 promotion needed.</p>
 <?php if ($error): ?><p class="alert alert-error"><?= htmlspecialchars($error) ?></p><?php endif; ?>
 <form method="post">
+<input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
 <label>Full Name <input type="text" name="name" value="<?= htmlspecialchars($_POST['name'] ?? '') ?>" required></label>
 <label>Email <input type="email" name="email" value="<?= htmlspecialchars($_POST['email'] ?? '') ?>" required></label>
 <label>Password

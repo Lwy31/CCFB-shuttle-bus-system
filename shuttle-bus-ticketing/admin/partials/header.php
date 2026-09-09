@@ -18,13 +18,15 @@
 </head>
 <body>
 <nav class="navbar">
-<a class="brand" href="routes.php"><img src="../assets/tarumt-logo.png" alt="TAR UMT" class="brand-logo">Admin &middot; Shuttle Bus Ticketing</a>
+<a class="brand" href="index.php"><img src="../assets/tarumt-logo.png" alt="TAR UMT" class="brand-logo">Admin &middot; Shuttle Bus Ticketing</a>
 <div class="nav-links">
+<a href="index.php" class="<?= $currentPage === 'index.php' ? 'active' : '' ?>">Dashboard</a>
 <a href="routes.php" class="<?= $currentPage === 'routes.php' ? 'active' : '' ?>">Routes</a>
 <a href="tickets.php" class="<?= $currentPage === 'tickets.php' ? 'active' : '' ?>">Tickets</a>
 <a href="testimonials.php" class="<?= $currentPage === 'testimonials.php' ? 'active' : '' ?>">Testimonials</a>
 <a href="messages.php" class="<?= $currentPage === 'messages.php' ? 'active' : '' ?>">Messages</a>
 <a href="users.php" class="<?= $currentPage === 'users.php' ? 'active' : '' ?>">Users</a>
+<a href="../index.php" target="_blank" title="Open Public Site in New Tab">View Site &nearr;</a>
 <a href="../logout.php">Logout</a>
 <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode">&#9728;</button>
 </div>

@@ -5,6 +5,7 @@ require '../helpers.php';
 require_admin();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf();
     $id = (int)$_POST['id'];
     $uploadDir = __DIR__ . '/../uploads';
 
@@ -21,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             delete_image_file($route['image_url'], $uploadDir);
         }
     } else {
-        $_SESSION['flash_error'] = 'Cannot delete this route: it still has tickets referencing it.';
+        $_SESSION['flash_error'] = 'Cannot delete this route: it still has departure times (or those departures still have tickets). Delete each departure time first.';
     }
     $stmt->close();
 }

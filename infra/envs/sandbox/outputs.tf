@@ -19,3 +19,10 @@ output "secret_arn" {
 output "asg_name" {
   value = module.asg.asg_name
 }
+
+output "sns_topic_arn" {
+  description = "ARN of the shared alerts/notifications SNS topic."
+  value       = module.sns.topic_arn
+}
+
+

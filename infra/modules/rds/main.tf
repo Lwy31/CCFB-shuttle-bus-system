@@ -39,3 +39,43 @@ resource "aws_db_instance" "this" {
     Name = "${var.name_prefix}-rds"
   }
 }
+
+# Ops alert: sustained high CPU usually means a slow query, a missing
+# index, or genuine traffic outgrowing db.t3.micro.
+resource "aws_cloudwatch_metric_alarm" "cpu_high" {
+  alarm_name          = "${var.name_prefix}-rds-cpu-high"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/RDS"
+  period              = 300
+  statistic           = "Average"
+  threshold           = 80
+  alarm_description   = "RDS CPU utilization above 80% for 15 minutes."
+  alarm_actions       = [var.sns_topic_arn]
+  ok_actions          = [var.sns_topic_arn]
+
+  dimensions = {
+    DBInstanceIdentifier = aws_db_instance.this.id
+  }
+}
+
+# Ops alert: catch this well before the DB actually runs out of disk and
+# starts refusing writes.
+resource "aws_cloudwatch_metric_alarm" "storage_low" {
+  alarm_name          = "${var.name_prefix}-rds-free-storage-low"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "FreeStorageSpace"
+  namespace           = "AWS/RDS"
+  period              = 300
+  statistic           = "Average"
+  threshold           = 2147483648 # 2 GiB, in bytes - CloudWatch reports this metric in bytes
+  alarm_description   = "RDS free storage below 2 GiB."
+  alarm_actions       = [var.sns_topic_arn]
+  ok_actions          = [var.sns_topic_arn]
+
+  dimensions = {
+    DBInstanceIdentifier = aws_db_instance.this.id
+  }
+}

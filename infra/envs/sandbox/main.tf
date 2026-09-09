@@ -46,6 +46,7 @@ module "rds" {
   db_name            = var.db_name
   db_username        = var.db_username
   db_password        = random_password.db.result
+  sns_topic_arn      = module.sns.topic_arn
 }
 
 module "secrets" {
@@ -59,6 +60,13 @@ module "secrets" {
   db_password = random_password.db.result
 }
 
+module "sns" {
+  source = "../../modules/sns"
+
+  name_prefix = var.name_prefix
+  admin_email = var.admin_email
+}
+
 module "alb" {
   source = "../../modules/alb"
 
@@ -67,6 +75,7 @@ module "alb" {
   public_subnet_ids = module.vpc.public_subnet_ids
   alb_sg_id         = module.security_groups.alb_sg_id
   health_check_path = var.health_check_path
+  sns_topic_arn     = module.sns.topic_arn
 }
 
 module "asg" {
@@ -86,4 +95,7 @@ module "asg" {
   desired_capacity      = var.asg_desired_capacity
   artifact_bucket       = module.s3.bucket_id
   artifact_key          = var.artifact_key
+  sns_topic_arn         = module.sns.topic_arn
 }
+
+

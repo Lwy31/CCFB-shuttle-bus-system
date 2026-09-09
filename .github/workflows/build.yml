@@ -30,6 +30,12 @@ on:
 env:
   AWS_REGION: us-east-1
   TF_WORKING_DIR: infra/envs/sandbox
+  # Terraform auto-reads any TF_VAR_<name> env var to populate the matching
+  # variable - admin_email has no default (it's personal, not something to
+  # hardcode in the repo), so it must come from somewhere for CI runs to
+  # work. Set an "ADMIN_EMAIL" repository variable under
+  # Settings -> Secrets and variables -> Actions -> Variables.
+  TF_VAR_admin_email: ${{ vars.ADMIN_EMAIL }}
 
 jobs:
   terraform:

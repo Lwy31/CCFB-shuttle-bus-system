@@ -29,10 +29,12 @@ require 'partials/header.php';
 <span class="stat-label">(you)</span>
 <?php else: ?>
 <form action="user_toggle_admin.php" method="post" style="display:inline" onsubmit="return confirm('<?= $u['is_admin'] ? 'Remove admin access from ' : 'Grant admin access to ' ?><?= htmlspecialchars($u['name']) ?>?');">
+<input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
 <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
 <button type="submit" class="btn btn-secondary btn-small"><?= $u['is_admin'] ? 'Revoke Admin' : 'Make Admin' ?></button>
 </form>
 <form action="user_delete.php" method="post" style="display:inline" onsubmit="return confirm('Delete this user? This will PERMANENTLY delete their account together with ALL of their tickets and testimonials. This cannot be undone.');">
+<input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
 <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
 <button type="submit" class="btn-small btn-danger">Delete</button>
 </form>

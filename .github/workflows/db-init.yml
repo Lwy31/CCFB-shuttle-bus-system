@@ -48,10 +48,10 @@ jobs:
         run: |
           aws s3 cp shuttle-bus-ticketing/schema.sql "s3://${{ env.SCHEMA_BUCKET }}/${{ env.SCHEMA_KEY }}"
           aws s3 cp infra/scripts/seed-db.sh "s3://${{ env.SCHEMA_BUCKET }}/${{ env.SCRIPT_KEY }}"
-          # Upload sample event images so the seed data's image_url references
-          # resolve. seed-db.sh will rewrite the DB paths to S3 URLs after import.
+          # Upload sample event images with long-term immutable Cache-Control so browsers cache them locally
           aws s3 sync shuttle-bus-ticketing/uploads/ "s3://${{ env.SCHEMA_BUCKET }}/uploads/" \
-            --exclude "index.html"
+            --exclude "index.html" \
+            --cache-control "public, max-age=31536000, immutable"
 
       - name: Run seed script on a running app instance via SSM
         run: |

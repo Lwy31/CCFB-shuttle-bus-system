@@ -2,7 +2,7 @@
 set -euxo pipefail
 
 dnf update -y
-dnf install -y httpd php php-mysqlnd php-cli jq unzip mariadb105
+dnf install -y httpd php php-mysqlnd php-cli php-opcache php-gd jq unzip mariadb105
 
 # Pull DB connection details from Secrets Manager (assignment-db-credentials)
 # using this instance's IAM role - no credentials are ever hardcoded here.
@@ -22,7 +22,29 @@ SetEnv DB_USER "$DB_USER"
 SetEnv DB_PASS "$DB_PASS"
 SetEnv DB_NAME "$DB_NAME"
 SetEnv S3_BUCKET "${artifact_bucket}"
+SetEnv AWS_S3_BUCKET "${artifact_bucket}"
 SetEnv AWS_REGION "${aws_region}"
+SetEnv AWS_S3_REGION "${aws_region}"
+SetEnv SNS_TOPIC_ARN "${sns_topic_arn}"
+SetEnv CDN_DOMAIN "${cdn_domain}"
+SetEnv AWS_CDN_DOMAIN "${cdn_domain}"
+EOF
+
+# Performance tuning: enable Gzip compression and browser caching for static assets
+cat <<'EOF' > /etc/httpd/conf.d/performance.conf
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json image/svg+xml
+</IfModule>
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType image/svg+xml "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/webp "access plus 1 month"
+</IfModule>
 EOF
 
 mkdir -p /var/www/html

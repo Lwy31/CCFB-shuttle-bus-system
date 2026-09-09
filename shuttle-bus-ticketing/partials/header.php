@@ -33,6 +33,9 @@ function nav_active($page, $current) {
 <a href="testimonials.php" class="<?= trim(nav_active('testimonials.php', $currentPage)) ?>">Testimonials</a>
 <a href="about.php" class="<?= trim(nav_active('about.php', $currentPage)) ?>">About</a>
 <a href="contact.php" class="<?= trim(nav_active('contact.php', $currentPage)) ?>">Contact</a>
+<?php if ($loggedIn && current_user_is_admin()): ?>
+<a href="admin/index.php" class="nav-admin-link">Admin</a>
+<?php endif; ?>
 <?php if ($loggedIn): ?>
 <div class="user-menu">
 <button type="button" class="nav-user user-menu-trigger" aria-haspopup="true" aria-expanded="false">

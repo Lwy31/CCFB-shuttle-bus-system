@@ -26,6 +26,7 @@ require 'partials/header.php';
 <div class="testimonial-meta">
 <span><?= htmlspecialchars($m['name']) ?> &middot; <?= htmlspecialchars($m['email']) ?></span>
 <form action="message_delete.php" method="post" style="display:inline" onsubmit="return confirm('Delete this message?');">
+<input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
 <input type="hidden" name="id" value="<?= (int)$m['id'] ?>">
 <button type="submit" class="btn-small btn-danger">Delete</button>
 </form>

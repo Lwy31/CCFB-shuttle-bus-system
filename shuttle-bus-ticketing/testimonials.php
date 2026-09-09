@@ -6,6 +6,7 @@ $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_login();
+    verify_csrf();
     $route_id = (int)$_POST['route_id'];
     $comment  = trim($_POST['comment']);
     $rating   = (int)$_POST['rating'];
@@ -49,6 +50,7 @@ require 'partials/header.php';
 <h2>Leave a Comment</h2>
 <?php if ($error): ?><p class="alert alert-error"><?= htmlspecialchars($error) ?></p><?php endif; ?>
 <form method="post">
+<input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
 <label>Route
 <select name="route_id" required>
 <option value="">-- Select a route --</option>
@@ -90,6 +92,7 @@ require 'partials/header.php';
 <span><?= htmlspecialchars($t['user_name']) ?> &middot; <?= htmlspecialchars(date('d M Y', strtotime($t['created_at']))) ?></span>
 <?php if (current_user_id() == $t['user_id']): ?>
 <form action="testimonial_delete.php" method="post" style="display:inline" onsubmit="return confirm('Delete this comment?');">
+<input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
 <input type="hidden" name="id" value="<?= (int)$t['id'] ?>">
 <button type="submit" class="btn-small btn-danger">Delete</button>
 </form>

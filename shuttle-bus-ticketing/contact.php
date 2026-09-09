@@ -6,6 +6,7 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf();
     $name    = trim($_POST['name']);
     $email   = trim($_POST['email']);
     $subject = trim($_POST['subject']);
@@ -63,6 +64,7 @@ require 'partials/header.php';
 <?php if ($error): ?><p class="alert alert-error"><?= htmlspecialchars($error) ?></p><?php endif; ?>
 <?php if (!$success): ?>
 <form method="post">
+<input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
 <label>Your Name <input type="text" name="name" value="<?= htmlspecialchars($_POST['name'] ?? '') ?>" required></label>
 <label>Email <input type="email" name="email" value="<?= htmlspecialchars($_POST['email'] ?? '') ?>" required></label>
 <label>Subject <input type="text" name="subject" value="<?= htmlspecialchars($_POST['subject'] ?? '') ?>" required></label>

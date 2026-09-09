@@ -4,6 +4,7 @@ require 'auth.php';
 require_login();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf();
     $id  = (int)$_POST['id'];
     $uid = current_user_id();
 
