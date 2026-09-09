@@ -76,7 +76,10 @@ $dbname = $_SERVER['DB_NAME'] ?? getenv('DB_NAME') ?: 'shuttle_bus_db';
 ini_set('default_socket_timeout', '3');
 $conn = mysqli_init();
 $conn->options(MYSQLI_OPT_CONNECT_TIMEOUT, 3);
-$connected = @$conn->real_connect($host, $user, $pass, $dbname);
+// Use persistent connections (p: prefix) to reuse existing MySQL connections across
+// worker requests, avoiding connection churn and max_connections exhaustion under surge.
+$pHost = (str_starts_with($host, 'p:') ? '' : 'p:') . $host;
+$connected = @$conn->real_connect($pHost, $user, $pass, $dbname);
 if (!$connected || $conn->connect_error) {
     // Signal unhealthy to an ALB health check (or anything else probing this
     // page) instead of silently returning 200 OK with an error message body -

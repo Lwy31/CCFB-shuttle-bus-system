@@ -37,6 +37,16 @@ if [ "$ALREADY_SEEDED" -gt 0 ]; then
       "UPDATE routes SET image_url = CONCAT('${IMAGE_PREFIX}', SUBSTRING_INDEX(image_url, '/', -1)) WHERE image_url IS NOT NULL AND image_url != '';"
     echo "Updated sample route image URLs to: ${IMAGE_PREFIX}"
   fi
+
+  # Ensure performance indexes exist even on pre-existing databases
+  INDEX_EXISTS=$(mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -D "shuttle_bus_db" -N -e \
+    "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema='shuttle_bus_db' AND table_name='tickets' AND index_name='idx_tickets_travel_trip'" 2>/dev/null || echo "0")
+  if [ "$INDEX_EXISTS" -eq 0 ]; then
+    echo "Adding performance indexes to tickets table..."
+    mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -D "shuttle_bus_db" -e \
+      "ALTER TABLE tickets ADD INDEX idx_tickets_travel_trip (travel_date, trip_id, seat_quantity), ADD INDEX idx_tickets_user_trip_date (user_id, trip_id, travel_date);" 2>/dev/null || true
+    echo "Performance indexes added."
+  fi
   exit 0
 fi
 

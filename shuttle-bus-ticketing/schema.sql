@@ -62,7 +62,9 @@ CREATE TABLE tickets (
   status VARCHAR(20) NOT NULL DEFAULT 'CONFIRMED',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (trip_id) REFERENCES trips(id)
+  FOREIGN KEY (trip_id) REFERENCES trips(id),
+  INDEX idx_tickets_travel_trip (travel_date, trip_id, seat_quantity),
+  INDEX idx_tickets_user_trip_date (user_id, trip_id, travel_date)
 );
 
 CREATE TABLE testimonials (

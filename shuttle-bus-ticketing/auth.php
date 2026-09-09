@@ -7,6 +7,8 @@
 // `sessions` table.
 class DbSessionHandler implements SessionHandlerInterface {
     private $conn;
+    private array $lastReadData = [];
+    private array $lastReadTime = [];
 
     public function __construct($conn) {
         $this->conn = $conn;
@@ -21,24 +23,48 @@ class DbSessionHandler implements SessionHandlerInterface {
     }
 
     public function read($id): string {
-        $stmt = $this->conn->prepare('SELECT data FROM sessions WHERE id = ?');
+        $stmt = $this->conn->prepare('SELECT data, last_activity FROM sessions WHERE id = ?');
         $stmt->bind_param('s', $id);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        return $row ? $row['data'] : '';
+        if ($row) {
+            $this->lastReadData[$id] = $row['data'];
+            $this->lastReadTime[$id] = (int)$row['last_activity'];
+            return $row['data'];
+        }
+        $this->lastReadData[$id] = null;
+        $this->lastReadTime[$id] = 0;
+        return '';
     }
 
     public function write($id, $data): bool {
         $now = time();
+
+        // Performance optimization: If session data has not changed and the session was
+        // refreshed recently (within 5 minutes / 300 seconds), skip the DB write.
+        // This eliminates redundant DB writes on read-only page loads during high-traffic surges.
+        if (
+            isset($this->lastReadData[$id]) &&
+            $this->lastReadData[$id] === $data &&
+            ($now - ($this->lastReadTime[$id] ?? 0)) < 300
+        ) {
+            return true;
+        }
+
         $stmt = $this->conn->prepare('INSERT INTO sessions (id, data, last_activity) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data = VALUES(data), last_activity = VALUES(last_activity)');
         $stmt->bind_param('ssi', $id, $data, $now);
         $ok = $stmt->execute();
         $stmt->close();
+        if ($ok) {
+            $this->lastReadData[$id] = $data;
+            $this->lastReadTime[$id] = $now;
+        }
         return $ok;
     }
 
     public function destroy($id): bool {
+        unset($this->lastReadData[$id], $this->lastReadTime[$id]);
         $stmt = $this->conn->prepare('DELETE FROM sessions WHERE id = ?');
         $stmt->bind_param('s', $id);
         $ok = $stmt->execute();
