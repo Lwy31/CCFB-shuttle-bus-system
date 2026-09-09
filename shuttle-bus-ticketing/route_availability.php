@@ -2,17 +2,36 @@
 require 'config.php';
 require 'auth.php';
 require 'helpers.php';
-require_login();
-
-header('Content-Type: application/json');
+// Security headers: Prevent MIME sniffing, clickjacking, and cache leaks
+header('Content-Type: application/json; charset=utf-8');
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('Cache-Control: no-store, no-cache, must-revalidate');
 
 $date      = $_GET['travel_date'] ?? '';
 $excludeId = (int)($_GET['exclude_ticket_id'] ?? 0);
 $uid       = current_user_id();
 
-if ($date === '') {
+// Security: Validate date format strictly (YYYY-MM-DD) to block malformed inputs
+if ($date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
     echo json_encode(['full_trip_ids' => [], 'remaining' => [], 'user_booked' => []]);
     exit;
+}
+
+// Security (Anti-IDOR): Only allow excluding a ticket ID if the user is logged in
+// and the ticket actually belongs to them (e.g. during edit ticket flow).
+if ($excludeId > 0) {
+    if (!$uid) {
+        $excludeId = 0;
+    } else {
+        $checkStmt = $conn->prepare('SELECT id FROM tickets WHERE id = ? AND user_id = ?');
+        $checkStmt->bind_param('ii', $excludeId, $uid);
+        $checkStmt->execute();
+        if (!$checkStmt->get_result()->fetch_assoc()) {
+            $excludeId = 0;
+        }
+        $checkStmt->close();
+    }
 }
 
 $trips = $conn->query('SELECT t.id, r.total_seats FROM trips t JOIN routes r ON r.id = t.route_id')->fetch_all(MYSQLI_ASSOC);
