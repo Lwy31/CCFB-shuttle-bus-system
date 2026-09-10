@@ -142,6 +142,7 @@ jobs:
                 "sudo cp -r /tmp/assignment-app-extract/* /var/www/html/",
                 "sudo chown -R apache:apache /var/www/html",
                 "sudo systemctl reload httpd",
+                "php -r 'require \"/var/www/html/config.php\";' 2>/dev/null || true",
                 "sudo rm -rf /tmp/assignment-app-extract /tmp/assignment-app.zip"
               ]}' \
               --query "Command.CommandId" --output text 2>/dev/null || echo "")

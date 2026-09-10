@@ -99,12 +99,14 @@ if ($tableCheck && $tableCheck->num_rows === 0) {
     $schemaFile = __DIR__ . '/schema.sql';
     if (is_file($schemaFile)) {
         $sql = file_get_contents($schemaFile);
-        if ($conn->multi_query($sql)) {
-            do {
-                if ($res = $conn->store_result()) {
-                    $res->free();
-                }
-            } while ($conn->more_results() && $conn->next_result());
+        // Strip comments and split by semicolon to run queries cleanly and reliably
+        $cleanSql = preg_replace('/--.*$/m', '', $sql);
+        $cleanSql = preg_replace('/\/\*.*?\*\//s', '', $cleanSql);
+        $statements = array_filter(array_map('trim', explode(';', $cleanSql)));
+        foreach ($statements as $stmtSql) {
+            if ($stmtSql !== '') {
+                $conn->query($stmtSql);
+            }
         }
     }
 }

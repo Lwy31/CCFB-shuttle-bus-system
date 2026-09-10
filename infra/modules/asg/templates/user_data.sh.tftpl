@@ -78,9 +78,9 @@ if aws s3api head-object --bucket "${artifact_bucket}" --key "${artifact_key}" -
 
   # Auto-seed database if tables do not exist
   if [ -f /var/www/html/schema.sql ]; then
-    TABLE_COUNT=$(mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -D "$DB_NAME" -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$DB_NAME' AND table_name='users';" 2>/dev/null || echo "0")
+    TABLE_COUNT=$(MYSQL_PWD="$DB_PASS" mysql -h "$DB_HOST" -u "$DB_USER" -D "$DB_NAME" -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$DB_NAME' AND table_name='users';" 2>/dev/null || echo "0")
     if [ "$TABLE_COUNT" -eq 0 ]; then
-      mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" < /var/www/html/schema.sql 2>/dev/null || true
+      MYSQL_PWD="$DB_PASS" mysql -h "$DB_HOST" -u "$DB_USER" < /var/www/html/schema.sql 2>/dev/null || true
     fi
   fi
 else
