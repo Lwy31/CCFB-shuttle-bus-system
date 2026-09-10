@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euxo pipefail
 
+# Ensure amazon-ssm-agent starts immediately in the background upon boot so it registers with AWS Systems Manager
+systemctl enable --now amazon-ssm-agent || true
+systemctl restart amazon-ssm-agent || true
+
 dnf update -y
 dnf install -y httpd php php-mysqlnd php-cli php-opcache php-gd jq unzip mariadb105
 

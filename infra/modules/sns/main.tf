@@ -17,6 +17,7 @@ resource "aws_sns_topic" "alerts" {
 # has no way to detect or wait for that confirmation click, so if alerts
 # never arrive, check the inbox (and spam folder) for that first email.
 resource "aws_sns_topic_subscription" "admin_email" {
+  count     = var.admin_email != "" ? 1 : 0
   topic_arn = aws_sns_topic.alerts.arn
   protocol  = "email"
   endpoint  = var.admin_email

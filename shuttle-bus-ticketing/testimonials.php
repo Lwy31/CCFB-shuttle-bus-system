@@ -19,6 +19,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bind_param('iisi', $uid, $route_id, $comment, $rating);
         if ($stmt->execute()) {
             $stmt->close();
+
+            // Send notification via Amazon SNS (if configured)
+            $userName = $_SESSION['user_name'] ?? 'User';
+            $subject = "New Testimonial Submitted ({$rating} Stars)";
+            $msg = "A new user testimonial/review has been submitted.\n\n"
+                . "Author: $userName (User ID: $uid)\n"
+                . "Route ID: $route_id\n"
+                . "Rating: $rating / 5\n"
+                . "Comment: $comment\n"
+                . "Date: " . date('Y-m-d H:i:s') . "\n";
+            sns_publish($subject, $msg);
+
             header('Location: testimonials.php');
             exit;
         }

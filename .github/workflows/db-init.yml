@@ -59,23 +59,43 @@ jobs:
 
           INSTANCE_ID=$(aws ec2 describe-instances \
             --filters "Name=tag:App,Values=${{ env.APP_TAG }}" "Name=instance-state-name,Values=running" \
-            --query "Reservations[0].Instances[0].InstanceId" --output text)
+            --query "Reservations[0].Instances[0].InstanceId" --output text 2>/dev/null || echo "")
 
           if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ]; then
             echo "No running app instance found - apply infra and wait for at least one healthy instance first."
             exit 1
           fi
 
-          COMMAND_ID=$(aws ssm send-command \
-            --document-name "AWS-RunShellScript" \
-            --instance-ids "$INSTANCE_ID" \
-            --comment "assignment-shuttle-bus-ticketing db seed" \
-            --parameters '{"commands":[
-              "aws s3 cp s3://${{ env.SCHEMA_BUCKET }}/${{ env.SCRIPT_KEY }} /tmp/seed-db.sh",
-              "chmod +x /tmp/seed-db.sh",
-              "AWS_REGION=${{ env.AWS_REGION }} /tmp/seed-db.sh s3://${{ env.SCHEMA_BUCKET }}/${{ env.SCHEMA_KEY }} ${{ env.SCHEMA_BUCKET }}"
-            ]}' \
-            --query "Command.CommandId" --output text)
+          echo "Found running instance: $INSTANCE_ID. Waiting for SSM Agent registration..."
+          SSM_ONLINE=false
+          for i in $(seq 1 12); do
+            ONLINE_SSM_IDS=$(aws ssm describe-instance-information \
+              --filters "Key=InstanceIds,Values=$INSTANCE_ID" "Key=PingStatus,Values=Online" \
+              --query "InstanceInformationList[].InstanceId" --output text 2>/dev/null || echo "")
+            if echo "$ONLINE_SSM_IDS" | grep -qw "$INSTANCE_ID"; then
+              SSM_ONLINE=true
+              echo "Instance $INSTANCE_ID is online in AWS Systems Manager."
+              break
+            fi
+            echo "Waiting for SSM Agent on $INSTANCE_ID to report Online (attempt $i/12)..."
+            sleep 5
+          done
 
-          aws ssm wait command-executed --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" || true
-          aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID"
+          if [ "$SSM_ONLINE" = true ]; then
+            COMMAND_ID=$(aws ssm send-command \
+              --document-name "AWS-RunShellScript" \
+              --instance-ids "$INSTANCE_ID" \
+              --comment "assignment-shuttle-bus-ticketing db seed" \
+              --parameters '{"commands":[
+                "aws s3 cp s3://${{ env.SCHEMA_BUCKET }}/${{ env.SCRIPT_KEY }} /tmp/seed-db.sh",
+                "chmod +x /tmp/seed-db.sh",
+                "AWS_REGION=${{ env.AWS_REGION }} /tmp/seed-db.sh s3://${{ env.SCHEMA_BUCKET }}/${{ env.SCHEMA_KEY }} ${{ env.SCHEMA_BUCKET }}"
+              ]}' \
+              --query "Command.CommandId" --output text)
+
+            aws ssm wait command-executed --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" || true
+            aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID"
+          else
+            echo "Notice: Instance $INSTANCE_ID is running but SSM Agent is not online yet."
+            echo "The database will be automatically seeded by EC2 user-data on boot and by config.php on first request."
+          fi

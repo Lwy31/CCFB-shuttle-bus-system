@@ -399,3 +399,110 @@ function s3_response_status($responseHeaders) {
     }
     return 0;
 }
+
+// ============================================================================
+// Amazon SNS Notification Support (SigV4 signing, zero SDK/Composer dependency)
+// Used to broadcast alerts for new bookings, testimonials, and contact inquiries
+// to the shared alerts SNS topic (SetEnv SNS_TOPIC_ARN).
+// ============================================================================
+
+// Signs an AWS SNS query API request using Signature Version 4
+function sns_sign($method, $region, $payload, $credentials) {
+    $host = "sns.$region.amazonaws.com";
+    $amzDate = gmdate('Ymd\THis\Z');
+    $dateStamp = gmdate('Ymd');
+    $payloadHash = hash('sha256', $payload);
+
+    $headers = [
+        'Content-Type' => 'application/x-www-form-urlencoded; charset=utf-8',
+        'Host' => $host,
+        'X-Amz-Date' => $amzDate,
+    ];
+    if (!empty($credentials['token'])) {
+        $headers['X-Amz-Security-Token'] = $credentials['token'];
+    }
+
+    $sorted = $headers;
+    ksort($sorted);
+    $canonicalHeaders = '';
+    foreach ($sorted as $name => $value) {
+        $canonicalHeaders .= strtolower($name) . ':' . trim($value) . "\n";
+    }
+    $signedHeaders = implode(';', array_map('strtolower', array_keys($sorted)));
+    $canonicalRequest = implode("\n", [$method, '/', '', $canonicalHeaders, $signedHeaders, $payloadHash]);
+
+    $service = 'sns';
+    $credentialScope = "$dateStamp/$region/$service/aws4_request";
+    $stringToSign = implode("\n", [
+        'AWS4-HMAC-SHA256',
+        $amzDate,
+        $credentialScope,
+        hash('sha256', $canonicalRequest),
+    ]);
+
+    $kDate = hash_hmac('sha256', $dateStamp, 'AWS4' . $credentials['secret_key'], true);
+    $kRegion = hash_hmac('sha256', $region, $kDate, true);
+    $kService = hash_hmac('sha256', $service, $kRegion, true);
+    $signingKey = hash_hmac('sha256', 'aws4_request', $kService, true);
+    $signature = hash_hmac('sha256', $stringToSign, $signingKey);
+
+    $headers['Authorization'] = "AWS4-HMAC-SHA256 Credential={$credentials['access_key']}/$credentialScope, "
+        . "SignedHeaders=$signedHeaders, Signature=$signature";
+
+    return [$host, $headers];
+}
+
+// Publishes a message to an Amazon SNS topic. Returns [true, null] on success or
+// [false, error_message] on failure. Non-blocking with short timeout (5s).
+function sns_publish($subject, $message, $topicArn = null) {
+    $topicArn = $topicArn ?: (defined('AWS_SNS_TOPIC_ARN') ? trim(AWS_SNS_TOPIC_ARN) : '');
+    if ($topicArn === '') {
+        return [false, 'No SNS topic ARN configured'];
+    }
+
+    $region = 'us-east-1';
+    if (preg_match('/^arn:aws:sns:([^:]+):/', $topicArn, $m)) {
+        $region = $m[1];
+    } elseif (defined('AWS_S3_REGION') && AWS_S3_REGION !== '') {
+        $region = AWS_S3_REGION;
+    }
+
+    $credentials = s3_instance_credentials();
+    if (!$credentials) {
+        return [false, 'No AWS credentials available for SNS publish'];
+    }
+
+    $params = [
+        'Action' => 'Publish',
+        'Version' => '2010-03-31',
+        'TopicArn' => $topicArn,
+        'Subject' => substr($subject, 0, 100),
+        'Message' => $message,
+    ];
+    $payload = http_build_query($params, '', '&', PHP_QUERY_RFC3986);
+
+    [$host, $headers] = sns_sign('POST', $region, $payload, $credentials);
+
+    $headerLines = '';
+    foreach ($headers as $name => $value) {
+        $headerLines .= "$name: $value\r\n";
+    }
+
+    $context = stream_context_create(['http' => [
+        'method' => 'POST',
+        'header' => $headerLines,
+        'content' => $payload,
+        'timeout' => 5,
+        'ignore_errors' => true,
+    ]]);
+
+    @file_get_contents("https://$host/", false, $context);
+    $status = s3_response_status($http_response_header ?? []);
+
+    if ($status >= 200 && $status < 300) {
+        return [true, null];
+    }
+
+    return [false, "SNS publish failed with HTTP status $status"];
+}
+

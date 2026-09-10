@@ -93,6 +93,7 @@ variable "asg_desired_capacity" {
 }
 
 variable "admin_email" {
-  description = "Email address that receives SNS alerts - both operational (ALB/ASG/RDS issues) and application-level (new bookings, new testimonials). AWS sends a one-time confirmation link here after the first apply; alerts won't deliver until it's clicked. No default on purpose - you must set this yourself (e.g. via -var or a .tfvars file), since it's personal to whoever's running this."
+  description = "Email address that receives SNS alerts - both operational (ALB/ASG/RDS issues) and application-level (new bookings, new testimonials). AWS sends a one-time confirmation link here after the first apply; alerts won't deliver until it's clicked. Optional: leave empty if email notifications are not yet configured."
   type        = string
+  default     = ""
 }

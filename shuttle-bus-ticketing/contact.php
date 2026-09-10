@@ -22,6 +22,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($stmt->execute()) {
             $stmt->close();
             $success = "Thanks for reaching out — we'll get back to you soon.";
+
+            // Send notification via Amazon SNS (if configured)
+            $snsSubject = "Contact Message: " . substr($subject, 0, 50);
+            $msg = "A new contact form inquiry has been submitted.\n\n"
+                . "From: $name ($email)\n"
+                . "Subject: $subject\n"
+                . "Message:\n$message\n\n"
+                . "Date: " . date('Y-m-d H:i:s') . "\n";
+            sns_publish($snsSubject, $msg);
         } else {
             $error = 'Could not send your message. Please try again.';
             $stmt->close();

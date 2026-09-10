@@ -65,8 +65,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $conn->prepare('INSERT INTO tickets (user_id, trip_id, travel_date, seat_quantity, total_price) VALUES (?, ?, ?, ?, ?)');
                 $stmt->bind_param('iisid', $uid, $trip_id, $travel_date, $seat_quantity, $total_price);
                 $stmt->execute();
+                $ticketId = $conn->insert_id;
                 $stmt->close();
                 $conn->commit();
+
+                // Send notification via Amazon SNS (if configured)
+                $userName = $_SESSION['user_name'] ?? 'Passenger';
+                $routeName = $trip['route_name'] ?? 'Shuttle';
+                $depTime = date('g:i A', strtotime($trip['departure_time']));
+                $subject = "New Shuttle Bus Booking: Ticket #$ticketId";
+                $msg = "A new shuttle bus ticket booking has been confirmed.\n\n"
+                    . "Ticket ID: #$ticketId\n"
+                    . "Passenger: $userName (User ID: $uid)\n"
+                    . "Route: $routeName\n"
+                    . "Travel Date: $travel_date\n"
+                    . "Departure Time: $depTime\n"
+                    . "Seats: $seat_quantity\n"
+                    . "Total Price: RM " . number_format($total_price, 2) . "\n"
+                    . "Booking Time: " . date('Y-m-d H:i:s') . "\n";
+                sns_publish($subject, $msg);
+
                 header('Location: index.php');
                 exit;
             }
