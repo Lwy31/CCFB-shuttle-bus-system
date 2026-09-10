@@ -88,24 +88,24 @@ jobs:
         run: |
           set -euo pipefail
 
-          for i in $(seq 1 30); do
+          for i in $(seq 1 60); do
             INSTANCE_IDS=$(aws ec2 describe-instances \
               --filters "Name=tag:App,Values=${{ env.APP_TAG }}" "Name=instance-state-name,Values=running" \
-              --query "Reservations[].Instances[].InstanceId" --output text)
+              --query "Reservations[].Instances[].InstanceId" --output text 2>/dev/null || echo "")
 
             if [ -n "$INSTANCE_IDS" ]; then
               IDS_CSV=$(echo "$INSTANCE_IDS" | tr '\t ' ',' | sed 's/,,*/,/g; s/^,//; s/,$//')
               ONLINE_COUNT=$(aws ssm describe-instance-information \
                 --filters "Key=InstanceIds,Values=$IDS_CSV" \
-                --query "length(InstanceInformationList[?PingStatus=='Online'])" --output text)
+                --query "length(InstanceInformationList[?PingStatus=='Online'])" --output text 2>/dev/null || echo "0")
 
-              if [ "$ONLINE_COUNT" != "0" ] && [ "$ONLINE_COUNT" != "None" ]; then
-                echo "Found $ONLINE_COUNT SSM-managed instance(s) online."
+              if [ "$ONLINE_COUNT" != "0" ] && [ "$ONLINE_COUNT" != "None" ] && [ -n "$ONLINE_COUNT" ]; then
+                echo "Found $ONLINE_COUNT SSM-managed instance(s) online: $IDS_CSV"
                 exit 0
               fi
             fi
 
-            echo "Waiting for at least one running + SSM-online instance (attempt $i/30)..."
+            echo "Waiting for at least one running + SSM-online instance (attempt $i/60, running instances: ${INSTANCE_IDS:-none})..."
             sleep 10
           done
 

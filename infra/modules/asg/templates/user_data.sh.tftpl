@@ -80,5 +80,10 @@ else
     > /var/www/html/healthz.php
 fi
 
+# Ensure amazon-ssm-agent is actively running and registered with AWS Systems Manager
+systemctl enable --now amazon-ssm-agent || true
+systemctl restart amazon-ssm-agent || true
+
 systemctl enable httpd
 systemctl restart httpd
+
