@@ -73,12 +73,16 @@ jobs:
 
       - name: Package application
         working-directory: ${{ env.APP_DIR }}
-        run: zip -r ../assignment-app.zip . -x "uploads/*"
+        run: zip -r ../assignment-app.zip .
 
-      - name: Upload artifact to S3
+      - name: Upload artifact and sample images to S3
         run: |
           aws s3 cp assignment-app.zip \
             "s3://${{ env.ARTIFACT_BUCKET }}/${{ env.ARTIFACT_PREFIX }}/assignment-app.zip"
+          aws s3 sync shuttle-bus-ticketing/uploads/ \
+            "s3://${{ env.ARTIFACT_BUCKET }}/uploads/" \
+            --exclude "index.html" \
+            --cache-control "public, max-age=31536000, immutable"
 
       # The other half of the sequencing fix: `terraform apply` in the `infra`
       # job returns as soon as the AWS API calls succeed, not once instances
@@ -140,7 +144,9 @@ jobs:
                 "sudo rm -rf /tmp/assignment-app-extract/*",
                 "sudo unzip -q -o /tmp/assignment-app.zip -d /tmp/assignment-app-extract",
                 "sudo cp -r /tmp/assignment-app-extract/* /var/www/html/",
+                "sudo mkdir -p /var/www/html/uploads",
                 "sudo chown -R apache:apache /var/www/html",
+                "sudo chmod -R 775 /var/www/html/uploads || true",
                 "sudo systemctl reload httpd",
                 "php -r 'require \"/var/www/html/config.php\";' 2>/dev/null || true",
                 "sudo rm -rf /tmp/assignment-app-extract /tmp/assignment-app.zip"

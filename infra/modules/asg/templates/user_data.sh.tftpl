@@ -75,6 +75,9 @@ if aws s3api head-object --bucket "${artifact_bucket}" --key "${artifact_key}" -
   aws s3 cp "s3://${artifact_bucket}/${artifact_key}" /tmp/assignment-app.zip --region "${aws_region}"
   rm -rf /var/www/html/*
   unzip -o /tmp/assignment-app.zip -d /var/www/html
+  mkdir -p /var/www/html/uploads
+  chown -R apache:apache /var/www/html
+  chmod -R 775 /var/www/html/uploads || true
 
   # Auto-seed database if tables do not exist
   if [ -f /var/www/html/schema.sql ]; then

@@ -66,8 +66,22 @@ function entity_image_url($row) {
         $prefix = str_contains($_SERVER['SCRIPT_NAME'] ?? '', '/admin/') ? '../' : '';
 
         $path = __DIR__ . '/' . $relative;
-        $version = is_file($path) ? '?v=' . filemtime($path) : '';
-        return $prefix . $relative . $version;
+        if (is_file($path)) {
+            return $prefix . $relative . '?v=' . filemtime($path);
+        }
+
+        // If not found on local disk, fallback to S3 or CloudFront if configured
+        if (defined('AWS_S3_BUCKET') && AWS_S3_BUCKET !== '') {
+            $bucket = AWS_S3_BUCKET;
+            $region = defined('AWS_S3_REGION') && AWS_S3_REGION !== '' ? AWS_S3_REGION : 'us-east-1';
+            $cdnDomain = defined('AWS_CDN_DOMAIN') ? trim(AWS_CDN_DOMAIN) : '';
+            if ($cdnDomain !== '') {
+                return "https://$cdnDomain/$relative";
+            }
+            return "https://$bucket.s3.$region.amazonaws.com/$relative";
+        }
+
+        return $prefix . $relative;
     }
 
     $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">'
