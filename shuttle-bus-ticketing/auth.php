@@ -24,6 +24,9 @@ class DbSessionHandler implements SessionHandlerInterface {
 
     public function read($id): string {
         $stmt = $this->conn->prepare('SELECT data, last_activity FROM sessions WHERE id = ?');
+        if (!$stmt) {
+            return '';
+        }
         $stmt->bind_param('s', $id);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
@@ -53,6 +56,9 @@ class DbSessionHandler implements SessionHandlerInterface {
         }
 
         $stmt = $this->conn->prepare('INSERT INTO sessions (id, data, last_activity) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data = VALUES(data), last_activity = VALUES(last_activity)');
+        if (!$stmt) {
+            return false;
+        }
         $stmt->bind_param('ssi', $id, $data, $now);
         $ok = $stmt->execute();
         $stmt->close();
@@ -66,6 +72,9 @@ class DbSessionHandler implements SessionHandlerInterface {
     public function destroy($id): bool {
         unset($this->lastReadData[$id], $this->lastReadTime[$id]);
         $stmt = $this->conn->prepare('DELETE FROM sessions WHERE id = ?');
+        if (!$stmt) {
+            return false;
+        }
         $stmt->bind_param('s', $id);
         $ok = $stmt->execute();
         $stmt->close();
@@ -75,6 +84,9 @@ class DbSessionHandler implements SessionHandlerInterface {
     public function gc($maxLifetime): int|false {
         $threshold = time() - $maxLifetime;
         $stmt = $this->conn->prepare('DELETE FROM sessions WHERE last_activity < ?');
+        if (!$stmt) {
+            return false;
+        }
         $stmt->bind_param('i', $threshold);
         $stmt->execute();
         $count = $stmt->affected_rows;

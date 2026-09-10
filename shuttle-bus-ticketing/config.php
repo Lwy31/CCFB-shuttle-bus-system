@@ -93,6 +93,22 @@ if (!$connected || $conn->connect_error) {
 // otherwise created_at/returned_at etc. would still be recorded 8 hours off.
 $conn->query("SET time_zone = '+08:00'");
 
+// Auto-initialize schema if tables do not exist yet (e.g. freshly created RDS instance)
+$tableCheck = $conn->query("SHOW TABLES LIKE 'users'");
+if ($tableCheck && $tableCheck->num_rows === 0) {
+    $schemaFile = __DIR__ . '/schema.sql';
+    if (is_file($schemaFile)) {
+        $sql = file_get_contents($schemaFile);
+        if ($conn->multi_query($sql)) {
+            do {
+                if ($res = $conn->store_result()) {
+                    $res->free();
+                }
+            } while ($conn->more_results() && $conn->next_result());
+        }
+    }
+}
+
 // ============================================================================
 // Photo storage (S3) - optional
 // ============================================================================
