@@ -17,8 +17,14 @@ if ($tableCheck && $tableCheck->num_rows > 0) {
 
 $schemaFile = __DIR__ . '/schema.sql';
 if (!is_file($schemaFile)) {
-    http_response_code(500);
-    die("Error: schema.sql file not found.\n");
+    if (is_file('/var/www/html/schema.sql')) {
+        $schemaFile = '/var/www/html/schema.sql';
+    } elseif (is_file('/tmp/schema.sql')) {
+        $schemaFile = '/tmp/schema.sql';
+    } else {
+        http_response_code(500);
+        die("Error: schema.sql file not found.\n");
+    }
 }
 
 $sql = file_get_contents($schemaFile);
