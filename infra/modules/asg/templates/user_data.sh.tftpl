@@ -71,8 +71,8 @@ EOF
 # surfaces here as a misleading "Invalid or expired request token" error
 # on every image upload, rather than any clear "file too large" message.
 cat <<'EOF' > /etc/php.d/20-uploads.ini
-upload_max_filesize = 10M
-post_max_size = 12M
+upload_max_filesize = 20M
+post_max_size = 25M
 EOF
 
 mkdir -p /var/www/html
