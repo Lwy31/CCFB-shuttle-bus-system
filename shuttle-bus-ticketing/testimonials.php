@@ -1,6 +1,7 @@
 <?php
 require 'config.php';
 require 'auth.php';
+require 'helpers.php';
 
 $error = '';
 
