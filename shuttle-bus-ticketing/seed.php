@@ -2,6 +2,7 @@
 // Secure / idempotent web-based database seeder
 // Runs schema.sql statement-by-statement to guarantee complete tables and seed rows.
 require_once __DIR__ . '/config.php';
+require 'helpers.php';
 
 header('Content-Type: text/plain; charset=utf-8');
 

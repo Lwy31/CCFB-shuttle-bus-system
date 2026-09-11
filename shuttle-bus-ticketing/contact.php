@@ -1,6 +1,7 @@
 <?php
-require 'config.php';
-require 'auth.php';
+require_once 'config.php';
+require_once 'auth.php';
+require_once 'helpers.php';
 
 $error = '';
 $success = '';
