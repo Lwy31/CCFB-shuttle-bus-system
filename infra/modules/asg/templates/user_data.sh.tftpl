@@ -64,6 +64,17 @@ opcache.validate_timestamps=1
 opcache.fast_shutdown=1
 EOF
 
+# Route/testimonial photo uploads: PHP's stock defaults (upload_max_filesize
+# 2M, post_max_size 8M on this AMI) are well below a typical phone photo.
+# When a POST body exceeds post_max_size, PHP silently drops the entire
+# $_POST/$_FILES superglobals - including the CSRF token field - which
+# surfaces here as a misleading "Invalid or expired request token" error
+# on every image upload, rather than any clear "file too large" message.
+cat <<'EOF' > /etc/php.d/20-uploads.ini
+upload_max_filesize = 10M
+post_max_size = 12M
+EOF
+
 mkdir -p /var/www/html
 
 # Self-healing deploy: every new/replaced instance (scale-out, instance
