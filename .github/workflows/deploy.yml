@@ -159,15 +159,24 @@ jobs:
               echo "In-place deployment executed successfully."
             fi
           else
-            echo "Notice: SSM agent offline. Triggering ASG instance refresh so fleet updates cleanly from S3..."
-            ASG_NAME=$(aws autoscaling describe-auto-scaling-groups \
-              --query "AutoScalingGroups[?contains(Tags[?Key=='App'].Value, '${{ env.APP_TAG }}')].AutoScalingGroupName | [0]" \
-              --output text 2>/dev/null || echo "")
-            if [ -n "$ASG_NAME" ] && [ "$ASG_NAME" != "None" ]; then
-              aws autoscaling start-instance-refresh \
-                --auto-scaling-group-name "$ASG_NAME" \
-                --preferences '{"MinHealthyPercentage": 50}' 2>/dev/null || true
-              echo "Instance refresh triggered on ASG: $ASG_NAME"
+            echo "Notice: SSM agent offline (this AWS Academy Learner Lab role has no SSM"
+            echo "fallback enabled - see LabRole's 'Systems Manager default role not"
+            echo "enabled' notice in the EC2 console). autoscaling:StartInstanceRefresh"
+            echo "is also blocked by an explicit-deny Service Control Policy in this"
+            echo "sandbox, so neither of the 'clean' update paths works here."
+            echo ""
+            echo "Falling back to terminating the current instance(s) directly - the ASG"
+            echo "detects the drop below desired capacity and launches replacement(s)"
+            echo "from the latest launch template, which pulls this build fresh from S3"
+            echo "via user-data on boot."
+            if [ -n "$INSTANCE_IDS" ]; then
+              aws ec2 terminate-instances --instance-ids $INSTANCE_IDS 2>/dev/null || true
+              echo "Terminated: $INSTANCE_IDS - ASG will replace them automatically."
+              echo "New instance(s) take a few minutes to boot, install dependencies, and"
+              echo "pass the ALB health check - the site may briefly 503 in the meantime."
+            else
+              echo "Warning: no running instance IDs were detected to terminate. The ASG"
+              echo "may still be launching its first instance(s) - nothing to do here."
             fi
           fi
 
