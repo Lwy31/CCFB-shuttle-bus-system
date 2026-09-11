@@ -20,6 +20,23 @@ resource "aws_lb_target_group" "app" {
   target_type          = "instance"
   deregistration_delay = 30
 
+  # Without this, the ALB round-robins every request across all healthy
+  # instances independently. PHP sessions are meant to be shared across
+  # instances via the RDS-backed DbSessionHandler, but if that's ever
+  # broken/misconfigured on one instance, a user's GET (which writes the
+  # CSRF token to their session) and their following POST (which checks
+  # it) can land on two different instances that disagree on the session -
+  # surfacing as "Invalid or expired request token" on effectively every
+  # form submission, not just occasionally. Stickiness pins one browser's
+  # requests to the same instance for the lifetime of the cookie, which
+  # sidesteps this class of bug entirely regardless of whether the shared
+  # session backend is actually working.
+  stickiness {
+    type            = "lb_cookie"
+    cookie_duration = 3600
+    enabled         = true
+  }
+
   health_check {
     path                = var.health_check_path
     protocol            = "HTTP"
